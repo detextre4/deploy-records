@@ -11,6 +11,12 @@ DR_SRC=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 . "$DR_SRC/lib/version.sh"
 # shellcheck source=lib/tag.sh
 . "$DR_SRC/lib/tag.sh"
+# shellcheck source=lib/changelog.sh
+. "$DR_SRC/lib/changelog.sh"
+# shellcheck source=lib/commits.sh
+. "$DR_SRC/lib/commits.sh"
+# shellcheck source=lib/notes.sh
+. "$DR_SRC/lib/notes.sh"
 
 dr_validate_inputs() {
   dr_one_of "${DR_MODE:-all}" mode prepare finalize all
@@ -60,8 +66,53 @@ dr_prepare() {
   dr_set_output tag-exists "$DR_T_EXISTS"
 }
 
+# Restores what prepare resolved (same job, same id).
+dr_load_state() {
+  dr_state_exists || dr_fail "mode=finalize found no prepare state for id '${DR_ID:-default}' — run this action with mode=prepare earlier in the same job (or use mode=all)."
+  DR_N_KIND=$(dr_state_get kind)
+  DR_V_FULL=$(dr_state_get version)
+  DR_V_NAME=$(dr_state_get version_name)
+  DR_V_BUILD=$(dr_state_get build_number)
+  DR_T_TAG=$(dr_state_get tag)
+  DR_T_PREVIOUS=$(dr_state_get previous_tag)
+  DR_T_EXISTS=$(dr_state_get tag_exists)
+}
+
 dr_finalize() {
-  dr_fail "mode=finalize is not implemented yet."
+  local notes
+  dr_load_state
+
+  notes=${DR_NOTES_FILE:-}
+  [ -n "$notes" ] || notes="$(dirname "$(dr_state_file)")/${DR_ID:-default}.md"
+  dr_build_notes "$notes"
+  dr_info "notes written to $notes"
+
+  if dr_bool "${DR_SUMMARY:-true}" summary; then
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+      { cat "$notes"; echo; } >> "$GITHUB_STEP_SUMMARY"
+    else
+      dr_warn "GITHUB_STEP_SUMMARY is not set — summary skipped."
+    fi
+  fi
+
+  dr_records "$notes"
+
+  dr_set_output version "$DR_V_FULL"
+  dr_set_output version-name "$DR_V_NAME"
+  dr_set_output build-number "$DR_V_BUILD"
+  dr_set_output tag "$DR_T_TAG"
+  dr_set_output previous-tag "$DR_T_PREVIOUS"
+  dr_set_output tag-exists "$DR_T_EXISTS"
+  dr_set_output notes-path "$notes"
+  dr_set_output notes "$(cat "$notes")"
+}
+
+# Tag push and GitHub Release — phase 3.
+dr_records() {
+  if [ "${DR_TAG:-annotated}" != none ] || dr_bool "${DR_RELEASE:-false}" release; then
+    dr_fail "tag/release records are not implemented yet (use tag: none for now)."
+  fi
+  dr_set_output tag-created false
 }
 
 dr_main() {

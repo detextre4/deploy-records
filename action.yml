@@ -161,6 +161,9 @@ outputs:
   notes-path:
     description: Path of the rendered notes file.
     value: ${{ steps.run.outputs.notes-path }}
+  notes:
+    description: The rendered notes (Markdown).
+    value: ${{ steps.run.outputs.notes }}
   release-url:
     description: URL of the published release (empty if none).
     value: ${{ steps.run.outputs.release-url }}
