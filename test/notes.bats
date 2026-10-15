@@ -218,3 +218,18 @@ c'
   run notes
   assert_line --index 0 '## 🚀 Web Production — `v1.0.0+1`'
 }
+
+@test "the README's example template renders every placeholder" {
+  export GITHUB_REPOSITORY=acme/app GITHUB_RUN_ID=123
+  pubspec 1.0.0+1
+  tag Android-v1.0.0+1
+  changelog
+  pubspec 1.1.0+2
+  dr all DR_TAG=none DR_PLATFORM=Android DR_TEMPLATE_FILE="$DR_ROOT/examples/notes-template.md" DR_NOTE=hi
+  assert_success
+  refute_output --partial "unknown placeholder"
+  run notes
+  assert_line --index 0 '# Android Release 1.1.0 (build 2)'
+  assert_line '<summary>2 commits since Android-v1.0.0+1</summary>'
+  refute_output --partial '{{'
+}

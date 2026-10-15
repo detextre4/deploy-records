@@ -24,7 +24,7 @@ dr_validate_inputs() {
   dr_one_of "${DR_MODE:-all}" mode prepare finalize all
   dr_one_of "${DR_KIND:-release}" kind release patch testing
   dr_one_of "${DR_TAG:-annotated}" tag none annotated lightweight
-  dr_one_of "${DR_ON_EXISTING:-fail}" on-existing fail skip overwrite
+  dr_one_of "${DR_ON_EXISTING:-fail}" on-existing fail skip use overwrite
   dr_one_of "${DR_LANGUAGE:-en}" language en es
   dr_bool "${DR_SUMMARY:-true}" summary || true
   dr_bool "${DR_RELEASE:-false}" release || true
@@ -42,8 +42,9 @@ dr_prepare() {
 
   if [ "$DR_T_EXISTS" = true ]; then
     case "${DR_ON_EXISTING:-fail}" in
-      fail) dr_fail "Tag $DR_T_TAG already exists — bump the version (or its +build number) before recording this $kind again, or set on-existing to skip/overwrite." ;;
+      fail) dr_fail "Tag $DR_T_TAG already exists — bump the version (or its +build number) before recording this $kind again, or set on-existing to skip/use/overwrite." ;;
       skip) dr_warn "Tag $DR_T_TAG already exists — on-existing=skip: no tag or release will be created." ;;
+      use) dr_info "Tag $DR_T_TAG already exists — on-existing=use: it is kept as is; release/branch records still run." ;;
       overwrite) dr_warn "Tag $DR_T_TAG already exists — on-existing=overwrite: it will be replaced." ;;
     esac
   fi

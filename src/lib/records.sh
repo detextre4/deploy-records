@@ -191,7 +191,10 @@ dr_records() {
     return 0
   fi
 
-  if [ "$want_tag" = true ]; then
+  if [ "$DR_T_EXISTS" = true ] && [ "${DR_ON_EXISTING:-fail}" = use ]; then
+    dr_info "using the existing tag $DR_T_TAG."
+    dr_set_output tag-created false
+  elif [ "$want_tag" = true ]; then
     dr_push_tag "$notes"
     dr_set_output tag-created true
   else

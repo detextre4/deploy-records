@@ -1,0 +1,17 @@
+# The smallest useful setup: just the job summary (version, commit,
+# changelog section, commits since the last v* tag). Nothing is pushed, so
+# no extra permissions are needed.
+name: Build
+
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: detextre4/deploy-records@v1
+        with:
+          tag: none

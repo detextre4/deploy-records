@@ -1,0 +1,36 @@
+# Web production deploy: the deployment URL only exists after the deploy
+# step, so it goes into the details at finalize time. No files to attach.
+name: Web Production
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: detextre4/deploy-records@v1
+        with:
+          mode: prepare
+          platform: Web
+
+      # ... build and deploy; suppose this step exposes outputs.url ...
+      - id: deploy
+        run: echo "url=https://example.pages.dev" >> "$GITHUB_OUTPUT"
+
+      - uses: detextre4/deploy-records@v1
+        with:
+          mode: finalize
+          platform: Web
+          title: Web Production
+          release: 'true'
+          branch: 'true'
+          details: |
+            URL|${{ steps.deploy.outputs.url }}

@@ -1,0 +1,55 @@
+# Flutter Android production deploy with Shorebird releases and patches.
+# prepare runs before the (slow) build so a version that was already
+# released fails in seconds; finalize records everything once the build and
+# the store upload succeeded.
+name: Android Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      action_type:
+        type: choice
+        options: [release, patch-stable, patch-staging]
+        default: release
+      note:
+        required: false
+
+permissions:
+  contents: write # push tags/branches, publish releases
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # previous tags, patch numbering, existing-tag check
+
+      - name: Resolve version & tag
+        id: records
+        uses: detextre4/deploy-records@v1
+        with:
+          mode: prepare
+          platform: Android
+          kind: ${{ inputs.action_type == 'release' && 'release' || 'patch' }}
+          require-build-number: 'true'
+
+      # ... setup Flutter/Shorebird, build, upload to Play ...
+      - run: echo "building ${{ steps.records.outputs.version }}"
+
+      - name: Record the deploy
+        uses: detextre4/deploy-records@v1
+        with:
+          mode: finalize
+          platform: Android
+          title: Android Production
+          note: ${{ inputs.note }}
+          details: |
+            Type|`${{ inputs.action_type }}`
+            Flavor|prod
+            API Version|`${{ vars.API_VERSION }}`
+          # Patches stay as an annotated tag; releases also get a GitHub
+          # Release with the APK and a support branch.
+          release: ${{ inputs.action_type == 'release' }}
+          branch: ${{ inputs.action_type == 'release' }}
+          files: build/app/outputs/flutter-apk/app-prod-release.apk

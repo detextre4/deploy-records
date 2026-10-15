@@ -188,3 +188,17 @@ missing/*.zip'
   assert_failure
   assert_output --partial "is not a valid branch name"
 }
+
+@test "on-existing=use keeps a hand-pushed tag and still publishes the release" {
+  pubspec 1.3.0+1
+  setup_remote
+  use_fake_api
+  tag v1.3.0+1
+  git push -q origin v1.3.0+1
+  dr all DR_ON_EXISTING=use DR_RELEASE=true
+  assert_success
+  assert_equal "$(output tag-created)" "false"
+  assert_equal "$(output release-url)" "https://github.com/o/r/releases/tag/new"
+  run git --git-dir="$BATS_TEST_TMPDIR/remote.git" cat-file -p refs/tags/v1.3.0+1
+  refute_output --partial "## 🚀"
+}

@@ -80,7 +80,11 @@ inputs:
     description: Glob for the previous tag (commits are listed since it). Default derived from the kind's template.
     default: ''
   on-existing:
-    description: What to do when the tag already exists — fail | skip (no tag/release, notes still written) | overwrite.
+    description: >-
+      What to do when the tag already exists —
+      fail; skip (no tag/release/branch, notes and summary still written);
+      use (keep the existing tag, e.g. pushed by hand, and still publish the
+      release/branch); overwrite (move the tag to HEAD, update the release).
     default: fail
 
   # --------------------------------------------------------------- notes

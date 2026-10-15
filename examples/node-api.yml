@@ -1,0 +1,30 @@
+# Node API: version from package.json, plain "v1.2.3" tags, a release on
+# every push to main. on-existing: skip lets pushes that don't bump the
+# version still write the summary without failing or re-releasing.
+name: API Production
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ... build, test, deploy ...
+
+      - uses: detextre4/deploy-records@v1
+        with:
+          version-file: package.json
+          on-existing: skip
+          release: 'true'
+          title: API Production
+          details: |
+            Environment|production

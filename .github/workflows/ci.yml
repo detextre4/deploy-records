@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # The action runs on whatever runner the caller picks, so the suite runs
+  # on all three: macOS covers bash 3.2, Windows covers Git Bash.
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: bats
+        shell: bash
+        run: |
+          git config --global user.name ci
+          git config --global user.email ci@example.com
+          npx bats --print-output-on-failure test
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install shellcheck-py==0.11.0.1 actionlint-py==1.7.12.25
+      - name: shellcheck
+        run: shellcheck -x -s bash src/main.sh src/lib/*.sh src/i18n/*.sh test/test_helper.bash test/fixtures/fake-curl
+      - name: actionlint
+        run: actionlint
+
+  # Runs the action itself from this checkout, end to end, without pushing
+  # anything: prepare + finalize with only the summary record on.
+  dogfood:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: prepare
+        uses: ./
+        with:
+          mode: prepare
+          version: 0.0.0+${{ github.run_number }}
+          platform: CI
+          kind: testing
+      - id: finalize
+        uses: ./
+        with:
+          mode: finalize
+          platform: CI
+          tag: none
+          details: |
+            Runner|${{ runner.os }}
+          note: Dogfood run — nothing is pushed.
+      - name: Check outputs
+        env:
+          TAG: ${{ steps.finalize.outputs.tag }}
+          NOTES: ${{ steps.finalize.outputs.notes-path }}
+        run: |
+          test "$TAG" = "testing-CI-v0.0.0+${{ github.run_number }}-run${{ github.run_number }}"
+          grep -q '^## 🚀 CI Testing' "$NOTES"

@@ -1,0 +1,32 @@
+# Testing/QA builds: every run gets its own annotated tag
+# (testing-<platform>-v<version>-run<N>), notes in Spanish, no GitHub Release.
+name: Testing iOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        required: false
+
+permissions:
+  contents: write # push the testing tag
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ... build the IPA, upload it as an artifact ...
+
+      - uses: detextre4/deploy-records@v1
+        with:
+          kind: testing
+          platform: iOS
+          language: es
+          title: Testing iOS
+          note: ${{ inputs.note }}
+          details: |
+            Entorno|${{ vars.ENVIRONMENT }}
