@@ -29,7 +29,9 @@ jobs:
         run: |
           git config --global user.name ci
           git config --global user.email ci@example.com
-          npx bats --print-output-on-failure test
+          # Straight from bash, not via npx: on Windows the npm shim hands bats a
+          # "D:/..." path, which bats rejects as not absolute.
+          ./node_modules/bats/bin/bats --print-output-on-failure test
 
   lint:
     runs-on: ubuntu-latest
