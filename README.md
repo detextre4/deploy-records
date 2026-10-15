@@ -259,6 +259,8 @@ Notes templates: `{{title}}`, `{{kind}}`, `{{kind_label}}`, `{{platform}}`,
   `github-actions[bot]` is used.
 - **Releases use the REST API with curl** (`GITHUB_API_URL` is honoured, so
   GitHub Enterprise Server works). `token` must be allowed to write contents.
+  Release bodies are capped at GitHub's 125000 characters (truncated with a
+  notice); the tag message and the summary always carry the full notes.
 - **`files` globs** are expanded by bash: one pattern per line; patterns
   matching nothing only warn.
 - **The notes reflect HEAD** at `finalize` time. run it on the commit you

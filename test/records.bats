@@ -202,3 +202,18 @@ missing/*.zip'
   run git --git-dir="$BATS_TEST_TMPDIR/remote.git" cat-file -p refs/tags/v1.3.0+1
   refute_output --partial "## 🚀"
 }
+
+@test "release bodies over GitHub's limit are truncated, the tag keeps everything" {
+  pubspec 1.3.0+1
+  setup_remote
+  use_fake_api
+  perl -e 'print "# Changelog\n\n## [1.3.0+1]\n\n"; print "- " . ("x" x 98) . "\n" for 1..1500' > CHANGELOG.md
+  git add CHANGELOG.md && commit "docs: big changelog"
+  dr all DR_RELEASE=true
+  assert_success
+  assert_output --partial "were truncated in the release body"
+  body_chars=$(DR_F="$FAKE_DIR/body-2" perl -MJSON::PP -e 'local $/; open my $f, "<", $ENV{DR_F}; print length(decode_json(<$f>)->{body})')
+  [ "$body_chars" -le 125000 ]
+  json_field "$FAKE_DIR/body-2" body | tail -n 1 | grep -q 'truncated'
+  [ "$(git --git-dir="$BATS_TEST_TMPDIR/remote.git" cat-file -p refs/tags/v1.3.0+1 | wc -c)" -gt 150000 ]
+}

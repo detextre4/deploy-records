@@ -6,6 +6,12 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ## [Unreleased]
 
+### Fixed
+
+- Release bodies over GitHub's 125000-character limit are truncated with a
+  notice instead of failing the step with HTTP 422; the tag message and the
+  job summary keep the full notes.
+
 ## [1.0.0] - 2026-10-15
 
 ### Added

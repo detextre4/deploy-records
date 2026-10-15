@@ -37,6 +37,14 @@ dr_release_payload() {
     perl -MJSON::PP -e '
       local $/; open my $fh, "<:raw", $ARGV[0] or die "notes: $!"; my $body = <$fh>;
       utf8::decode($body);
+      # GitHub rejects release bodies over 125000 characters (HTTP 422).
+      # The tag message and the job summary still carry the full notes.
+      my $max = 125000;
+      my $more = "\n\n… (truncated — the full notes are in the tag message and the workflow run summary)\n";
+      if (length($body) > $max) {
+        $body = substr($body, 0, $max - length($more)) . $more;
+        print STDERR "::warning title=deploy-records::Release notes exceed GitHub'"'"'s 125000-character limit and were truncated in the release body.\n";
+      }
       print JSON::PP->new->utf8->canonical->encode({
         tag_name    => $ENV{DR_P_TAG},
         name        => $ENV{DR_P_NAME},
