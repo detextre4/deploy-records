@@ -32,6 +32,7 @@ dr_render_context() {
   [ -n "$sha" ] || sha=$(git rev-parse HEAD 2>/dev/null || true)
   dr_render "$1" \
     platform "${DR_PLATFORM:-}" \
+    platform_lower "$(printf '%s' "${DR_PLATFORM:-}" | tr '[:upper:]' '[:lower:]')" \
     run "${GITHUB_RUN_NUMBER:-0}" \
     run_attempt "${GITHUB_RUN_ATTEMPT:-1}" \
     sha "$sha" \

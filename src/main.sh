@@ -17,6 +17,8 @@ DR_SRC=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 . "$DR_SRC/lib/commits.sh"
 # shellcheck source=lib/notes.sh
 . "$DR_SRC/lib/notes.sh"
+# shellcheck source=lib/records.sh
+. "$DR_SRC/lib/records.sh"
 
 dr_validate_inputs() {
   dr_one_of "${DR_MODE:-all}" mode prepare finalize all
@@ -26,6 +28,7 @@ dr_validate_inputs() {
   dr_one_of "${DR_LANGUAGE:-en}" language en es
   dr_bool "${DR_SUMMARY:-true}" summary || true
   dr_bool "${DR_RELEASE:-false}" release || true
+  dr_bool "${DR_BRANCH:-false}" branch || true
   if dr_bool "${DR_RELEASE:-false}" release && [ "${DR_TAG:-annotated}" = none ]; then
     dr_fail "release: true needs a tag — set 'tag' to annotated or lightweight."
   fi
@@ -105,14 +108,6 @@ dr_finalize() {
   dr_set_output tag-exists "$DR_T_EXISTS"
   dr_set_output notes-path "$notes"
   dr_set_output notes "$(cat "$notes")"
-}
-
-# Tag push and GitHub Release — phase 3.
-dr_records() {
-  if [ "${DR_TAG:-annotated}" != none ] || dr_bool "${DR_RELEASE:-false}" release; then
-    dr_fail "tag/release records are not implemented yet (use tag: none for now)."
-  fi
-  dr_set_output tag-created false
 }
 
 dr_main() {

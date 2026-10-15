@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Stand-in for curl in the release tests. Logs every request to
+# $FAKE_LOG ("METHOD URL" per line), copies request bodies to
+# $FAKE_DIR/body-<n>, writes a canned JSON response to the -o file and prints
+# the status like `-w '%{http_code}'` would.
+#   FAKE_EXISTING=1   GET .../releases/tags/... answers 200 (release exists)
+#   FAKE_FAIL_CREATE=1  POST .../releases answers 422 with a message
+set -u
+method=GET url='' out=/dev/null data=''
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -X) method=$2; shift 2 ;;
+    -o) out=$2; shift 2 ;;
+    -w | -H) shift 2 ;;
+    --data-binary) data=${2#@}; shift 2 ;;
+    -sS) shift ;;
+    http*) url=$1; shift ;;
+    *) shift ;;
+  esac
+done
+
+n=$(($(wc -l < "$FAKE_LOG" 2>/dev/null || echo 0) + 1))
+echo "$method $url" >> "$FAKE_LOG"
+[ -n "$data" ] && cp "$data" "$FAKE_DIR/body-$n"
+
+existing='{"id":7,"upload_url":"https://uploads.example/repos/o/r/releases/7/assets{?name,label}","html_url":"https://github.com/o/r/releases/tag/old","assets":[{"id":99,"name":"app.apk"}]}'
+created='{"id":8,"upload_url":"https://uploads.example/repos/o/r/releases/8/assets{?name,label}","html_url":"https://github.com/o/r/releases/tag/new","assets":[]}'
+
+respond() {
+  printf '%s' "$2" > "$out"
+  printf '%s' "$1"
+}
+
+case "$method $url" in
+  "GET "*/releases/tags/*)
+    if [ -n "${FAKE_EXISTING:-}" ]; then respond 200 "$existing"; else respond 404 '{"message":"Not Found"}'; fi ;;
+  "POST "*/releases)
+    if [ -n "${FAKE_FAIL_CREATE:-}" ]; then respond 422 '{"message":"Validation Failed"}'; else respond 201 "$created"; fi ;;
+  "PATCH "*/releases/*) respond 200 "$existing" ;;
+  "DELETE "*/releases/assets/*) respond 204 '' ;;
+  "POST https://uploads.example/"*) respond 201 '{"id":1}' ;;
+  *) respond 500 '{"message":"unexpected request"}' ;;
+esac

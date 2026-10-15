@@ -33,6 +33,15 @@ inputs:
   release:
     description: Publish a GitHub Release on the tag (requires tag != none).
     default: 'false'
+  branch:
+    description: Also push a version branch at the deployed commit (support/hotfix line). Left alone if it already exists.
+    default: 'false'
+  branch-template:
+    description: Branch name template. Default "version/{{platform_lower}}/{{version}}" ("version/{{version}}" without platform).
+    default: ''
+  remote:
+    description: Git remote the tag and branch are pushed to.
+    default: origin
   notes-file:
     description: Path to also write the rendered notes to (empty = a temp file, exposed as the notes-path output).
     default: ''
@@ -167,6 +176,12 @@ outputs:
   release-url:
     description: URL of the published release (empty if none).
     value: ${{ steps.run.outputs.release-url }}
+  branch:
+    description: Version branch name (empty when branch is off).
+    value: ${{ steps.run.outputs.branch }}
+  branch-created:
+    description: Whether the version branch was pushed by this run.
+    value: ${{ steps.run.outputs.branch-created }}
 
 runs:
   using: composite
@@ -180,6 +195,9 @@ runs:
         DR_SUMMARY: ${{ inputs.summary }}
         DR_TAG: ${{ inputs.tag }}
         DR_RELEASE: ${{ inputs.release }}
+        DR_BRANCH: ${{ inputs.branch }}
+        DR_BRANCH_TEMPLATE: ${{ inputs.branch-template }}
+        DR_REMOTE: ${{ inputs.remote }}
         DR_NOTES_FILE: ${{ inputs.notes-file }}
         DR_VERSION: ${{ inputs.version }}
         DR_VERSION_FILE: ${{ inputs.version-file }}
