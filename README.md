@@ -1,7 +1,7 @@
 # deploy-records
 
 A composite GitHub Action that **records a deploy**: it resolves the version
-and tag, renders release notes, and — each one switched on or off on its own —
+and tag, renders release notes, and, each one switched on or off on its own,
 writes the job summary, pushes a git tag, publishes a GitHub Release and
 pushes a version branch.
 
@@ -41,11 +41,11 @@ That run, with `version: 1.3.0+1` in `pubspec.yaml`, pushes an annotated tag
 
 The same body goes to the job summary and the tag message.
 
-- **Pure bash + git + curl + perl** — runs on Ubuntu, macOS (bash 3.2) and
+- **Pure bash + git + curl + perl**l, runs on Ubuntu, macOS (bash 3.2) and
   Windows (Git Bash) runners, hosted or self-hosted. No Node, no Docker, no
   other action.
 - **Every input is passed through environment variables**, never
-  interpolated into shell code — a note with quotes or `$(...)` is just text.
+  interpolated into shell code, a note with quotes or `$(...)` is just text.
 
 ## Contents
 
@@ -131,21 +131,21 @@ Without `platform`, the defaults drop it: `v1.3.0+1`,
 
 ## Notes
 
-**Sections** — `sections: details,changelog,commits` picks and orders them.
+**Sections**: `sections: details,changelog,commits` picks and orders them.
 
-- **details** — a table with version, tag and a link to the commit, then one
+- **details**: a table with version, tag and a link to the commit, then one
   row per `details` line (`Label|Value`), then `note`. Pipes and newlines in
   values are escaped so the table never breaks.
-- **changelog** — a section of a [Keep a Changelog](https://keepachangelog.com)
+- **changelog**: a section of a [Keep a Changelog](https://keepachangelog.com)
   file (`changelog-path`). `changelog-section: auto` takes the version's own
   section (`## [1.3.0+1]`) or falls back to `## [Unreleased]`; patches always
   use `Unreleased`, since they ship what's pending. Also `version`,
   `unreleased` or an exact section name. A missing file skips the section.
-- **commits** — `git log` since the previous tag, `commit-format` (any
+- **commits**: `git log` since the previous tag, `commit-format` (any
   `--pretty` format), capped at `max-commits` with a "+N more" line, merges
   excluded unless `include-merges`.
 
-**Language** — `language: en` or `es`, and any label can be overridden:
+**Language**: `language: en` or `es`, and any label can be overridden:
 
 ```yaml
 labels: |
@@ -157,7 +157,7 @@ Keys: `field value version tag commit previous_tag note none kind_release
 kind_patch kind_testing changelog commits_since commits_all no_changelog
 no_commits more`.
 
-**Full template** — `template-file: .github/release-notes.md` replaces the
+**Full template**: `template-file: .github/release-notes.md` replaces the
 built-in layout with your own Markdown and [placeholders](#placeholders),
 including whole rendered blocks (`{{details}}`, `{{changelog}}`,
 `{{commits}}`) or their raw parts (`{{changelog_body}}`, `{{commit_list}}`).
@@ -251,7 +251,7 @@ Notes templates: `{{title}}`, `{{kind}}`, `{{kind_label}}`, `{{platform}}`,
 
 - **`fetch-depth: 0`** on `actions/checkout`. A shallow clone has no earlier
   tags, so the previous tag, patch numbering and the existing-tag check would
-  be wrong — the action warns when it detects one.
+  be wrong, the action warns when it detects one.
 - **`permissions: contents: write`** in the calling workflow for tags,
   branches and releases. An action can't grant itself permissions; a summary-
   only run (`tag: none`) needs none.
@@ -261,18 +261,18 @@ Notes templates: `{{title}}`, `{{kind}}`, `{{kind_label}}`, `{{platform}}`,
   GitHub Enterprise Server works). `token` must be allowed to write contents.
 - **`files` globs** are expanded by bash: one pattern per line; patterns
   matching nothing only warn.
-- **The notes reflect HEAD** at `finalize` time — run it on the commit you
+- **The notes reflect HEAD** at `finalize` time. run it on the commit you
   built.
 
 ## Examples
 
-- [`flutter-mobile-release.yml`](examples/flutter-mobile-release.yml) —
+- [`flutter-mobile-release.yml`](examples/flutter-mobile-release.yml):
   Shorebird release/patch, APK attached, version branch.
-- [`testing-build.yml`](examples/testing-build.yml) — per-run testing tags,
+- [`testing-build.yml`](examples/testing-build.yml): per-run testing tags,
   Spanish notes.
-- [`web-deploy.yml`](examples/web-deploy.yml) — deployment URL in the notes.
-- [`node-api.yml`](examples/node-api.yml) — `package.json`, release on push.
-- [`minimal.yml`](examples/minimal.yml) — summary only, nothing pushed.
+- [`web-deploy.yml`](examples/web-deploy.yml): deployment URL in the notes.
+- [`node-api.yml`](examples/node-api.yml): `package.json`, release on push.
+- [`minimal.yml`](examples/minimal.yml): summary only, nothing pushed.
 
 ## Development
 
