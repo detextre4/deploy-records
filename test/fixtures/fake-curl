@@ -5,6 +5,7 @@
 # the status like `-w '%{http_code}'` would.
 #   FAKE_EXISTING=1   GET .../releases/tags/... answers 200 (release exists)
 #   FAKE_FAIL_CREATE=1  POST .../releases answers 422 with a message
+#   FAKE_REF_EXISTS=1   POST .../git/refs answers 422 (ref already exists)
 set -u
 method=GET url='' out=/dev/null data=''
 while [ $# -gt 0 ]; do
@@ -37,6 +38,10 @@ case "$method $url" in
   "POST "*/releases)
     if [ -n "${FAKE_FAIL_CREATE:-}" ]; then respond 422 '{"message":"Validation Failed"}'; else respond 201 "$created"; fi ;;
   "PATCH "*/releases/*) respond 200 "$existing" ;;
+  "POST "*/git/tags) respond 201 '{"sha":"0123456789abcdef0123456789abcdef01234567"}' ;;
+  "POST "*/git/refs)
+    if [ -n "${FAKE_REF_EXISTS:-}" ]; then respond 422 '{"message":"Reference already exists"}'; else respond 201 '{"ref":"ok"}'; fi ;;
+  "PATCH "*/git/refs/*) respond 200 '{"ref":"ok"}' ;;
   "DELETE "*/releases/assets/*) respond 204 '' ;;
   "POST https://uploads.example/"*) respond 201 '{"id":1}' ;;
   *) respond 500 '{"message":"unexpected request"}' ;;

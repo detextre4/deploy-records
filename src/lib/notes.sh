@@ -5,7 +5,7 @@
 # Notes rendering: built-in layout (sections in the order given by
 # `sections`) or a user Markdown template with {{placeholders}}.
 
-DR_LABEL_KEYS="field value version tag commit previous_tag note none kind_release kind_patch kind_testing changelog commits_since commits_all no_changelog no_commits more"
+DR_LABEL_KEYS="field value version tag commit previous_tag note none kind_release kind_patch kind_testing changelog commits_since commits_all no_changelog no_commits more show_all"
 
 dr_load_labels() {
   local lang=${DR_LANGUAGE:-en} line key text
@@ -83,10 +83,27 @@ EOF
   printf '| **%s** | %s |\n' "$DR_L_note" "$(dr_cell "${DR_NOTE:-$DR_L_none}")"
 }
 
+# dr_collapse <body> — prints the body, folded into a <details> block when it
+# has more lines than collapse-after (0 = never fold), so a long changelog or
+# commit list doesn't flood the summary/release page.
+dr_collapse() {
+  local body=$1 max=${DR_COLLAPSE_AFTER:-40} lines
+  case "$max" in
+    '' | *[!0-9]*) dr_fail "Input 'collapse-after' must be a whole number, got '$max'." ;;
+  esac
+  lines=$(printf '%s\n' "$body" | wc -l | tr -d ' ')
+  if [ "$max" -eq 0 ] || [ "$lines" -le "$max" ]; then
+    printf '%s\n' "$body"
+    return 0
+  fi
+  printf '<details>\n<summary>%s</summary>\n\n%s\n\n</details>\n' \
+    "$(dr_render "$DR_L_show_all" lines "$lines")" "$body"
+}
+
 dr_block_changelog() {
   [ -n "$DR_C_LABEL" ] || return 0
   printf '### 📋 %s (%s — `[%s]`)\n\n' "$DR_L_changelog" "$(basename "${DR_CHANGELOG_PATH:-CHANGELOG.md}")" "$DR_C_LABEL"
-  if [ -n "$DR_C_BODY" ]; then printf '%s\n' "$DR_C_BODY"; else printf '%s\n' "$DR_L_no_changelog"; fi
+  if [ -n "$DR_C_BODY" ]; then dr_collapse "$DR_C_BODY"; else printf '%s\n' "$DR_L_no_changelog"; fi
 }
 
 dr_commits_body() {
@@ -100,7 +117,7 @@ dr_block_commits() {
   else
     printf '### 🧾 %s\n\n' "$DR_L_commits_all"
   fi
-  dr_commits_body
+  dr_collapse "$(dr_commits_body)"
 }
 
 dr_default_title() {

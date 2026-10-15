@@ -87,7 +87,7 @@ json_field() {
   git remote add origin "$BATS_TEST_TMPDIR/does-not-exist.git"
   dr all
   assert_failure
-  assert_output --partial "permissions: contents: write"
+  assert_output --partial "Could not push refs/tags/v1.0.0+1 (see the git output above)"
 }
 
 @test "release is created with the notes, flags and assets" {
@@ -201,4 +201,88 @@ missing/*.zip'
   assert_equal "$(output release-url)" "https://github.com/o/r/releases/tag/new"
   run git --git-dir="$BATS_TEST_TMPDIR/remote.git" cat-file -p refs/tags/v1.3.0+1
   refute_output --partial "## 🚀"
+}
+
+@test "release bodies over GitHub's limit are truncated, the tag keeps everything" {
+  pubspec 1.3.0+1
+  setup_remote
+  use_fake_api
+  perl -e 'print "# Changelog\n\n## [1.3.0+1]\n\n"; print "- " . ("x" x 98) . "\n" for 1..1500' > CHANGELOG.md
+  git add CHANGELOG.md && commit "docs: big changelog"
+  dr all DR_RELEASE=true
+  assert_success
+  assert_output --partial "were truncated in the release body"
+  body_chars=$(DR_F="$FAKE_DIR/body-2" perl -MJSON::PP -e 'local $/; open my $f, "<", $ENV{DR_F}; print length(decode_json(<$f>)->{body})')
+  [ "$body_chars" -le 125000 ]
+  json_field "$FAKE_DIR/body-2" body | tail -n 1 | grep -q 'truncated'
+  [ "$(git --git-dir="$BATS_TEST_TMPDIR/remote.git" cat-file -p refs/tags/v1.3.0+1 | wc -c)" -gt 150000 ]
+}
+
+# GitHub's rule: GITHUB_TOKEN can't push refs touching .github/workflows/.
+reject_like_github() {
+  cat > "$BATS_TEST_TMPDIR/remote.git/hooks/pre-receive" <<'HOOK'
+#!/bin/sh
+echo 'refusing to allow a GitHub App to create or update workflow `.github/workflows/ci.yml` without `workflows` permission' >&2
+exit 1
+HOOK
+  chmod +x "$BATS_TEST_TMPDIR/remote.git/hooks/pre-receive"
+}
+
+@test "workflows-permission rejection falls back to the API (annotated tag + ref)" {
+  pubspec 1.3.0+1
+  setup_remote
+  use_fake_api
+  reject_like_github
+  dr all DR_PLATFORM=Android
+  assert_success
+  assert_output --partial "rejected by GitHub's rule"
+  assert_output --partial "created annotated tag Android-v1.3.0+1 through the API"
+  assert_equal "$(output tag-created)" "true"
+  run cat "$FAKE_LOG"
+  assert_line --index 0 "POST https://api.github.com/repos/o/r/git/tags"
+  assert_line --index 1 "POST https://api.github.com/repos/o/r/git/refs"
+  assert_equal "$(json_field "$FAKE_DIR/body-1" tag)" "Android-v1.3.0+1"
+  assert_equal "$(json_field "$FAKE_DIR/body-1" object)" "$(git rev-parse HEAD)"
+  json_field "$FAKE_DIR/body-1" message | grep -q '^## 🚀 Android Release'
+  assert_equal "$(json_field "$FAKE_DIR/body-2" ref)" "refs/tags/Android-v1.3.0+1"
+  assert_equal "$(json_field "$FAKE_DIR/body-2" sha)" "0123456789abcdef0123456789abcdef01234567"
+}
+
+@test "API fallback: lightweight tag, overwrite and version branch" {
+  pubspec 1.3.0+1
+  setup_remote
+  use_fake_api
+  reject_like_github
+  dr all DR_TAG=lightweight DR_BRANCH=true DR_PLATFORM=Web
+  assert_success
+  run cat "$FAKE_LOG"
+  refute_line --partial "git/tags"
+  assert_line "POST https://api.github.com/repos/o/r/git/refs"
+  assert_equal "$(json_field "$FAKE_DIR/body-1" sha)" "$(git rev-parse HEAD)"
+  assert_equal "$(json_field "$FAKE_DIR/body-2" ref)" "refs/heads/version/web/1.3.0+1"
+
+  : > "$FAKE_LOG"
+  git tag v9.9.9 # make the tag "exist" locally for on-existing=overwrite
+  export FAKE_REF_EXISTS=1
+  dr all DR_ID=ow DR_VERSION=9.9.9 DR_TAG=lightweight DR_ON_EXISTING=overwrite
+  assert_success
+  run cat "$FAKE_LOG"
+  assert_line "PATCH https://api.github.com/repos/o/r/git/refs/tags/v9.9.9"
+}
+
+@test "other push failures don't fall back" {
+  pubspec 1.3.0+1
+  setup_remote
+  use_fake_api
+  cat > "$BATS_TEST_TMPDIR/remote.git/hooks/pre-receive" <<'HOOK'
+#!/bin/sh
+echo 'remote: Permission to o/r.git denied to github-actions[bot].' >&2
+exit 1
+HOOK
+  chmod +x "$BATS_TEST_TMPDIR/remote.git/hooks/pre-receive"
+  dr all
+  assert_failure
+  assert_output --partial "Add 'permissions: contents: write'"
+  run cat "$FAKE_LOG"
+  assert_output ""
 }

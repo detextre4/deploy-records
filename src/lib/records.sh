@@ -37,6 +37,14 @@ dr_release_payload() {
     perl -MJSON::PP -e '
       local $/; open my $fh, "<:raw", $ARGV[0] or die "notes: $!"; my $body = <$fh>;
       utf8::decode($body);
+      # GitHub rejects release bodies over 125000 characters (HTTP 422).
+      # The tag message and the job summary still carry the full notes.
+      my $max = 125000;
+      my $more = "\n\n… (truncated — the full notes are in the tag message and the workflow run summary)\n";
+      if (length($body) > $max) {
+        $body = substr($body, 0, $max - length($more)) . $more;
+        print STDERR "::warning title=deploy-records::Release notes exceed GitHub'"'"'s 125000-character limit and were truncated in the release body.\n";
+      }
       print JSON::PP->new->utf8->canonical->encode({
         tag_name    => $ENV{DR_P_TAG},
         name        => $ENV{DR_P_NAME},
@@ -66,11 +74,83 @@ dr_api_fail() {
   dr_fail "$1 (HTTP $DR_HTTP_STATUS${message:+: $message})."
 }
 
+# dr_json_payload key=value... > json — "!key=true|false" for booleans,
+# "@key=<file>" to embed a file's (UTF-8) content.
+dr_json_payload() {
+  perl -MJSON::PP -e '
+    my %h;
+    for my $arg (@ARGV) {
+      my ($k, $v) = split /=/, $arg, 2;
+      if ($k =~ s/^!//) { $h{$k} = $v eq "true" ? JSON::PP::true : JSON::PP::false; next }
+      if ($k =~ s/^@//) { local $/; open my $fh, "<:raw", $v or die "$v: $!"; $v = <$fh> }
+      utf8::decode($v);
+      $h{$k} = $v;
+    }
+    print JSON::PP->new->utf8->canonical->encode(\%h);
+  ' "$@"
+}
+
+dr_api_init() {
+  DR_API=${GITHUB_API_URL:-https://api.github.com}
+  DR_REPO=${GITHUB_REPOSITORY:-}
+  [ -n "$DR_REPO" ] || dr_fail "GITHUB_REPOSITORY is not set — can't call the GitHub API outside GitHub Actions."
+  DR_API_TMP="$(dirname "$(dr_state_file)")/api-${DR_ID:-default}"
+  mkdir -p "$DR_API_TMP"
+}
+
+# dr_api_ref <full ref, e.g. refs/tags/x> <sha> <overwrite: true|false>
+# Creates the ref through the REST API (or moves it when overwriting).
+dr_api_ref() {
+  local ref=$1 sha=$2 overwrite=$3 path
+  dr_api_init
+  dr_json_payload "ref=$ref" "sha=$sha" > "$DR_API_TMP/ref.json"
+  dr_http POST "$DR_API/repos/$DR_REPO/git/refs" "$DR_API_TMP/ref-out.json" --data-binary "@$DR_API_TMP/ref.json"
+  [ "$DR_HTTP_STATUS" = 201 ] && return 0
+  if [ "$DR_HTTP_STATUS" = 422 ] && [ "$overwrite" = true ]; then
+    path="${ref#refs/}"
+    path="${path%%/*}/$(dr_uri_escape "${path#*/}")"
+    dr_json_payload "sha=$sha" '!force=true' > "$DR_API_TMP/ref.json"
+    dr_http PATCH "$DR_API/repos/$DR_REPO/git/refs/$path" "$DR_API_TMP/ref-out.json" --data-binary "@$DR_API_TMP/ref.json"
+    [ "$DR_HTTP_STATUS" = 200 ] && return 0
+  fi
+  dr_api_fail "Creating $ref through the API failed" "$DR_API_TMP/ref-out.json"
+}
+
+# dr_git_push <refspec> [--force] — 0 pushed; 2 rejected by GitHub's
+# "workflows" permission rule (the caller falls back to the API); any other
+# failure stops the step with a message matching its cause.
+dr_git_push() {
+  local refspec=$1 force=${2:-} out
+  # shellcheck disable=SC2086  # $force is empty or one flag
+  if out=$(git push $force "${DR_REMOTE:-origin}" "$refspec" 2>&1); then
+    printf '%s\n' "$out" >&2
+    return 0
+  fi
+  printf '%s\n' "$out" >&2
+  # shellcheck disable=SC2016  # literal backticks from GitHub's message
+  case "$out" in
+    *'without `workflows` permission'* | *"without 'workflows' permission"*)
+      return 2
+      ;;
+    *'Permission to'*'denied'* | *'403'* | *'not allowed to push'*)
+      dr_fail "Could not push $refspec — the token can't write to the repository. Add 'permissions: contents: write' to the workflow (or pass a token that can)."
+      ;;
+    *)
+      dr_fail "Could not push $refspec (see the git output above)."
+      ;;
+  esac
+}
+
+dr_workflows_fallback_note() {
+  dr_warn "git push of $1 was rejected by GitHub's rule that GITHUB_TOKEN can't push refs touching .github/workflows/ — creating it through the REST API instead."
+}
+
 dr_push_tag() {
-  local notes=$1 force=
+  local notes=$1 force='' overwrite=false sha tag_sha rc
   if [ "$DR_T_EXISTS" = true ] && [ "${DR_ON_EXISTING:-fail}" = overwrite ]; then
     git tag -d "$DR_T_TAG" > /dev/null
     force=--force
+    overwrite=true
   fi
 
   # Annotated tags need a tagger, which actions/checkout doesn't configure.
@@ -86,9 +166,29 @@ dr_push_tag() {
   else
     git tag "$DR_T_TAG"
   fi
-  git push $force "${DR_REMOTE:-origin}" "refs/tags/$DR_T_TAG" ||
-    dr_fail "Could not push tag $DR_T_TAG — the workflow needs 'permissions: contents: write'."
-  dr_info "pushed ${DR_TAG:-annotated} tag $DR_T_TAG"
+
+  # shellcheck disable=SC2086  # $force is empty or one flag
+  if dr_git_push "refs/tags/$DR_T_TAG" $force; then
+    dr_info "pushed ${DR_TAG:-annotated} tag $DR_T_TAG"
+    return 0
+  else
+    rc=$?
+  fi
+  [ "$rc" = 2 ] || return "$rc"
+
+  dr_workflows_fallback_note "tag $DR_T_TAG"
+  sha=$(git rev-parse HEAD)
+  if [ "${DR_TAG:-annotated}" = annotated ]; then
+    dr_api_init
+    dr_json_payload "tag=$DR_T_TAG" "@message=$notes" "object=$sha" "type=commit" > "$DR_API_TMP/tag.json"
+    dr_http POST "$DR_API/repos/$DR_REPO/git/tags" "$DR_API_TMP/tag-out.json" --data-binary "@$DR_API_TMP/tag.json"
+    [ "$DR_HTTP_STATUS" = 201 ] || dr_api_fail "Creating the tag object $DR_T_TAG failed" "$DR_API_TMP/tag-out.json"
+    tag_sha=$(dr_json_get "$DR_API_TMP/tag-out.json" sha)
+  else
+    tag_sha=$sha
+  fi
+  dr_api_ref "refs/tags/$DR_T_TAG" "$tag_sha" "$overwrite"
+  dr_info "created ${DR_TAG:-annotated} tag $DR_T_TAG through the API"
 }
 
 dr_upload_assets() {
@@ -121,9 +221,7 @@ EOF
 
 dr_publish_release() {
   local notes=$1 tmp tag_path id upload_url url
-  DR_API=${GITHUB_API_URL:-https://api.github.com}
-  DR_REPO=${GITHUB_REPOSITORY:-}
-  [ -n "$DR_REPO" ] || dr_fail "GITHUB_REPOSITORY is not set — can't publish a release outside GitHub Actions."
+  dr_api_init
   DR_R_NAME=${DR_RELEASE_NAME:-}
   if [ -z "$DR_R_NAME" ]; then
     if [ -n "${DR_PLATFORM:-}" ]; then DR_R_NAME="$DR_PLATFORM v$DR_V_FULL"; else DR_R_NAME="v$DR_V_FULL"; fi
@@ -173,9 +271,15 @@ dr_push_branch() {
     dr_set_output branch-created false
     return 0
   fi
-  git push "$remote" "HEAD:refs/heads/$name" ||
-    dr_fail "Could not push branch $name — the workflow needs 'permissions: contents: write'."
-  dr_info "pushed branch $name"
+  if dr_git_push "HEAD:refs/heads/$name"; then
+    dr_info "pushed branch $name"
+  else
+    local rc=$?
+    [ "$rc" = 2 ] || return "$rc"
+    dr_workflows_fallback_note "branch $name"
+    dr_api_ref "refs/heads/$name" "$(git rev-parse HEAD)" false
+    dr_info "created branch $name through the API"
+  fi
   dr_set_output branch-created true
 }
 
