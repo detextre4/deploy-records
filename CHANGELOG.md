@@ -8,6 +8,12 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ### Fixed
 
+- Tags and version branches no longer fail when GitHub refuses the
+  `git push` because `GITHUB_TOKEN` can't push refs that touch
+  `.github/workflows/` ("refusing to allow a GitHub App to create or update
+  workflow … without `workflows` permission"): the ref is then created
+  through the REST API with the `token` input. Push errors now name their
+  real cause instead of always pointing at `contents: write`.
 - Release bodies over GitHub's 125000-character limit are truncated with a
   notice instead of failing the step with HTTP 422; the tag message and the
   job summary keep the full notes.

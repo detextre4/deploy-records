@@ -255,6 +255,11 @@ Notes templates: `{{title}}`, `{{kind}}`, `{{kind_label}}`, `{{platform}}`,
 - **`permissions: contents: write`** in the calling workflow for tags,
   branches and releases. An action can't grant itself permissions; a summary-
   only run (`tag: none`) needs none.
+- **GitHub refuses `git push` from `GITHUB_TOKEN` for refs it sees as
+  touching `.github/workflows/`** ("…without `workflows` permission"). When
+  that happens the tag/branch is created through the REST API instead, with
+  `token`. If your setup still blocks it, pass a PAT or GitHub App token with
+  the `workflow` scope as `token`.
 - **Annotated tags need a git identity.** If the job has none configured,
   `github-actions[bot]` is used.
 - **Releases use the REST API with curl** (`GITHUB_API_URL` is honoured, so
