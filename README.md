@@ -1,4 +1,7 @@
-# deploy-records
+# Deploy Records
+
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-Deploy%20Records-blue?logo=github)](https://github.com/marketplace/actions/deploy-records)
+[![CI](https://github.com/detextre4/deploy-records/actions/workflows/ci.yml/badge.svg)](https://github.com/detextre4/deploy-records/actions/workflows/ci.yml)
 
 A composite GitHub Action that **records a deploy**: it resolves the version
 and tag, renders release notes, and, each one switched on or off on its own,
@@ -298,8 +301,14 @@ shellcheck -x -s bash src/main.sh src/lib/*.sh src/i18n/*.sh
 actionlint
 ```
 
-Releasing: add the version's section to `CHANGELOG.md`, push a `vX.Y.Z` tag;
-`release.yml` publishes the release (with this action) and moves `vX`.
+Releasing:
+
+1. Close the version's section in `CHANGELOG.md` and push it to `main`.
+2. Push a `vX.Y.Z` tag. `release.yml` drafts the GitHub Release with this
+   action (notes from that `CHANGELOG.md` section) and moves `vX`.
+3. Open the draft under Releases, tick **Publish this Action to the GitHub
+   Marketplace** and publish it — GitHub only lists releases published that
+   way, from the web UI.
 
 ## License
 

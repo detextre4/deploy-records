@@ -1,9 +1,5 @@
-name: deploy-records
-description: >-
-  Records a deploy: resolves its version and tag, builds release notes
-  (details table, CHANGELOG section, commits since the previous tag) and,
-  each one optional, writes the job summary, pushes a git tag and publishes a
-  GitHub Release.
+name: Deploy Records
+description: 'Record every deploy: version tag, GitHub Release, changelog notes, job summary and version branch.'
 author: detextre4
 
 inputs:

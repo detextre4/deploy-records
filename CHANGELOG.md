@@ -6,6 +6,15 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-15
+
+### Changed
+
+- Marketplace-ready metadata: display name "Deploy Records" and a short
+  description (usage is unchanged: `uses: detextre4/deploy-records@v1`).
+- Releases of this action are created as drafts, to be published from the
+  web UI with the GitHub Marketplace option ticked.
+
 ## [1.1.0] - 2026-10-15
 
 ### Added
