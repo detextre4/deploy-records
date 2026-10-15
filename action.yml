@@ -106,6 +106,9 @@ inputs:
   labels:
     description: Label overrides, one "key=Text" per line (see README for keys).
     default: ''
+  collapse-after:
+    description: Fold the changelog/commits sections into a collapsible <details> block when they exceed this many lines (0 = never fold).
+    default: '40'
   template-file:
     description: Markdown template with {{placeholders}} replacing the built-in layout entirely.
     default: ''
@@ -220,6 +223,7 @@ runs:
         DR_SECTIONS: ${{ inputs.sections }}
         DR_LANGUAGE: ${{ inputs.language }}
         DR_LABELS: ${{ inputs.labels }}
+        DR_COLLAPSE_AFTER: ${{ inputs.collapse-after }}
         DR_TEMPLATE_FILE: ${{ inputs.template-file }}
         DR_CHANGELOG_PATH: ${{ inputs.changelog-path }}
         DR_CHANGELOG_SECTION: ${{ inputs.changelog-section }}

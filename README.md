@@ -145,6 +145,12 @@ Without `platform`, the defaults drop it: `v1.3.0+1`,
   `--pretty` format), capped at `max-commits` with a "+N more" line, merges
   excluded unless `include-merges`.
 
+**Long sections fold**: when the changelog section or the commit list has
+more than `collapse-after` lines (default `40`), its content goes into a
+collapsible `<details>` block ("Show all (N lines)") under a visible heading,
+so a big `Unreleased` section doesn't flood the summary or release page.
+`collapse-after: 0` never folds.
+
 **Language**: `language: en` or `es`, and any label can be overridden:
 
 ```yaml
@@ -155,7 +161,7 @@ labels: |
 
 Keys: `field value version tag commit previous_tag note none kind_release
 kind_patch kind_testing changelog commits_since commits_all no_changelog
-no_commits more`.
+no_commits more show_all` (`show_all` may use `{{lines}}`).
 
 **Full template**: `template-file: .github/release-notes.md` replaces the
 built-in layout with your own Markdown and [placeholders](#placeholders),
@@ -204,6 +210,7 @@ placeholders are left in place with a warning.
 | `sections` | `details,changelog,commits` | Built-in sections and their order |
 | `language` | `en` | `en` or `es` |
 | `labels` | — | Label overrides, `key=Text` per line |
+| `collapse-after` | `40` | Fold longer changelog/commit sections (`0` = never) |
 | `template-file` | — | Your own Markdown template |
 | `changelog-path` | `CHANGELOG.md` | Keep a Changelog file |
 | `changelog-section` | `auto` | `auto`, `version`, `unreleased` or a name |

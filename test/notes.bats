@@ -233,3 +233,29 @@ c'
   assert_line '<summary>2 commits since Android-v1.0.0+1</summary>'
   refute_output --partial '{{'
 }
+
+@test "long sections fold into <details>, short ones don't" {
+  pubspec 1.0.0+1
+  perl -e 'print "# Changelog\n\n## [Unreleased]\n\n"; print "- item $_\n" for 1..60' > CHANGELOG.md
+  git add CHANGELOG.md && commit "docs: changelog"
+  dr all DR_TAG=none
+  assert_success
+  run notes
+  assert_line '<summary>Show all (60 lines)</summary>'
+  assert_line '- item 60'
+  # The 2-commit list stays unfolded.
+  [ "$(grep -c '<details>' "$RUNNER_TEMP/deploy-records/default.md")" -eq 1 ]
+
+  dr all DR_TAG=none DR_ID=es DR_LANGUAGE=es DR_COLLAPSE_AFTER=1
+  run cat "$RUNNER_TEMP/deploy-records/es.md"
+  assert_line '<summary>Ver todo (60 líneas)</summary>'
+  assert_line '<summary>Ver todo (2 líneas)</summary>'
+
+  dr all DR_TAG=none DR_ID=never DR_COLLAPSE_AFTER=0
+  run cat "$RUNNER_TEMP/deploy-records/never.md"
+  refute_output --partial '<details>'
+
+  dr all DR_TAG=none DR_ID=bad DR_COLLAPSE_AFTER=lots
+  assert_failure
+  assert_output --partial "Input 'collapse-after' must be a whole number"
+}

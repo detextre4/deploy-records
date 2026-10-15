@@ -6,6 +6,12 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ## [Unreleased]
 
+### Added
+
+- `collapse-after` (default `40`): a changelog section or commit list longer
+  than that folds into a collapsible `<details>` block, so a big
+  `Unreleased` section no longer floods the summary or release page.
+
 ### Fixed
 
 - Tags and version branches no longer fail when GitHub refuses the
