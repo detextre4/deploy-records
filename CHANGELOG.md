@@ -6,6 +6,8 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-15
+
 ### Added
 
 - `collapse-after` (default `40`): a changelog section or commit list longer
