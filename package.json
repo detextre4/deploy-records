@@ -1,0 +1,13 @@
+{
+  "name": "deploy-records-dev",
+  "private": true,
+  "description": "Dev-only tooling for the deploy-records GitHub Action (the action itself has no Node dependency).",
+  "scripts": {
+    "test": "bats --print-output-on-failure test"
+  },
+  "devDependencies": {
+    "bats": "1.13.0",
+    "bats-assert": "2.2.4",
+    "bats-support": "0.3.0"
+  }
+}
