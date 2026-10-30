@@ -31,6 +31,7 @@ dr_validate_inputs() {
   dr_bool "${DR_RELEASE:-false}" release || true
   dr_bool "${DR_BRANCH:-false}" branch || true
   dr_bool "${DR_RELEASE_LINES:-false}" release-lines || true
+  dr_bool "${DR_RECORD:-true}" record || true
   if dr_bool "${DR_RELEASE:-false}" release && [ "${DR_TAG:-annotated}" = none ]; then
     dr_fail "release: true needs a tag — set 'tag' to annotated or lightweight."
   fi

@@ -148,3 +148,46 @@ setup_remote() {
   assert_equal "$(output branch-updated)" "true"
   assert_equal "$(git --git-dir="$BATS_TEST_TMPDIR/remote.git" rev-parse refs/heads/version/android/1.2.0+1)" "$(git rev-parse HEAD)"
 }
+
+@test "record: false is a trial run on any ref, release lines included" {
+  pubspec 1.2.0+1
+  setup_remote
+  tag Android-v1.2.0+1
+  git push -q origin Android-v1.2.0+1
+  git checkout -q -b version/android/1.2.0+1
+  git push -q origin version/android/1.2.0+1
+  line_sha=$(git rev-parse HEAD)
+  commit "fix: tried on staging"
+  dr all DR_KIND=patch DR_PLATFORM=Android DR_BRANCH=true DR_BRANCH_UPDATE=fast-forward \
+    DR_RELEASE_LINES=true DR_RECORD_ON=deploy/android DR_RECORD=false
+  assert_success
+  assert_output --partial "record: false"
+  assert_equal "$(output recorded)" "false"
+  assert_equal "$(output tag)" "Android-v1.2.0+1-patch1"
+  assert_equal "$(output tag-created)" "false"
+  assert_equal "$(output branch-updated)" "false"
+  assert_equal "$(git --git-dir="$BATS_TEST_TMPDIR/remote.git" rev-parse refs/heads/version/android/1.2.0+1)" "$line_sha"
+  run git --git-dir="$BATS_TEST_TMPDIR/remote.git" tag -l '*-patch*'
+  assert_output ""
+  grep -q "Android-v1.2.0+1-patch1" "$GITHUB_STEP_SUMMARY"
+
+  # The stable run afterwards still gets patch1: the trial used nothing up.
+  : > "$GITHUB_OUTPUT"
+  dr all DR_ID=stable DR_KIND=patch DR_PLATFORM=Android DR_BRANCH=true DR_BRANCH_UPDATE=fast-forward \
+    DR_RELEASE_LINES=true DR_RECORD_ON=deploy/android
+  assert_success
+  assert_equal "$(output tag)" "Android-v1.2.0+1-patch1"
+  assert_equal "$(output tag-created)" "true"
+  assert_equal "$(output branch-updated)" "true"
+}
+
+@test "record: false doesn't fail on an existing tag; invalid values fail" {
+  pubspec 1.3.0+1
+  tag Android-v1.3.0+1
+  dr prepare DR_PLATFORM=Android DR_RECORD=false
+  assert_success
+  assert_output --partial "already exists — ignored"
+  dr prepare DR_PLATFORM=Android DR_RECORD=maybe
+  assert_failure
+  assert_output --partial "Input 'record' must be true or false"
+}
