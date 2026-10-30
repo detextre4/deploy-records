@@ -15,6 +15,10 @@ setup() {
   git config user.email test@example.com
   git config tag.gpgSign false
   git config commit.gpgSign false
+  # No detached gc/maintenance: a background git outliving the test keeps
+  # bats waiting on its output (seen on the Windows runner).
+  git config gc.auto 0
+  git config maintenance.auto false
 
   export RUNNER_TEMP="$BATS_TEST_TMPDIR/runner"
   export GITHUB_OUTPUT="$BATS_TEST_TMPDIR/github_output"
