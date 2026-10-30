@@ -41,6 +41,12 @@ inputs:
   branch-template:
     description: Branch name template. Default "version/{{platform_lower}}/{{version}}" ("version/{{version}}" without platform).
     default: ''
+  record:
+    description: >-
+      false = a trial run (e.g. a patch on a staging channel): only the notes
+      and summary are written, on any ref, and an existing tag doesn't fail.
+      Set it on prepare (or all).
+    default: 'true'
   record-on:
     description: >-
       Refs (globs, comma- or newline-separated, e.g. "deploy/android") where
@@ -200,7 +206,7 @@ outputs:
     description: kind=patch — the patch number (empty otherwise).
     value: ${{ steps.run.outputs.patch }}
   recorded:
-    description: Whether this ref writes the tag/release/branch (record-on / release line).
+    description: Whether this run writes the tag/release/branch (record, record-on, release line).
     value: ${{ steps.run.outputs.recorded }}
   release-line:
     description: The release line (version branch) this run is on, empty if none.
@@ -242,6 +248,7 @@ runs:
         DR_BRANCH: ${{ inputs.branch }}
         DR_BRANCH_UPDATE: ${{ inputs.branch-update }}
         DR_BRANCH_TEMPLATE: ${{ inputs.branch-template }}
+        DR_RECORD: ${{ inputs.record }}
         DR_RECORD_ON: ${{ inputs.record-on }}
         DR_RELEASE_LINES: ${{ inputs.release-lines }}
         DR_REMOTE: ${{ inputs.remote }}

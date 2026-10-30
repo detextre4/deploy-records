@@ -210,6 +210,14 @@ Actions); output `release-line` names it, empty off a line. The
 
 ## Recording only on some refs
 
+`record: 'false'` makes a run a trial: only the notes and summary, on any
+ref, and nothing that later runs depend on (a patch tried on a staging
+channel doesn't use up a patch number, nor moves the version branch):
+
+```yaml
+record: ${{ inputs.action_type != 'patch-staging' }}
+```
+
 `record-on` lists the refs (globs, comma- or newline-separated) where the
 tag, release and branch are written, e.g. `record-on: deploy/android` or
 `record-on: main, release/*`. On any other ref only the notes and summary are
@@ -295,6 +303,7 @@ placeholders are left in place with a warning.
 | `tag` | `annotated` | `none`, `annotated` or `lightweight` |
 | `release` | `false` | Publish a GitHub Release |
 | `branch` | `false` | Push a version branch |
+| `record` | `true` | `false` = trial run: notes and summary only |
 | `record-on` | — | Refs (globs) where tag/release/branch are written; empty = all |
 | `release-lines` | `false` | Version branches as release lines (see [Release lines](#release-lines)) |
 | `branch-update` | `never` | `never` or `fast-forward` an existing version branch |
@@ -347,7 +356,7 @@ placeholders are left in place with a warning.
 | `release-url` | The release page (empty if none) |
 | `branch` / `branch-created` | The version branch name / whether it was pushed now |
 | `branch-updated` | Whether an existing version branch was fast-forwarded now |
-| `recorded` | Whether this ref writes the tag/release/branch (`record-on`, release line) |
+| `recorded` | Whether this run writes the tag/release/branch (`record`, `record-on`, release line) |
 | `release-line` | The release line this run is on (empty if none) |
 
 ## Placeholders

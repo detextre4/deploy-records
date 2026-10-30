@@ -6,6 +6,15 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-30
+
+### Added
+
+- `record` (default `true`): `false` makes the run a trial — only the notes
+  and summary, on any ref, and an existing tag doesn't fail `prepare` — e.g.
+  a patch tried on a staging channel, so it neither uses up a patch number
+  nor moves the version branch. Overrides `record-on` and release lines.
+
 ## [1.3.0] - 2026-10-30
 
 ### Added

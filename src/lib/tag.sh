@@ -275,11 +275,18 @@ dr_check_line_policy() {
   dr_fail "$DR_T_BASE_TAG is not the latest release ($latest) — with release-lines, an older release is patched from its release line: branch $line off it (if missing), cherry-pick the fix there and run this workflow on $line."
 }
 
-# Sets DR_RECORDED: whether tag/release/branch are written on this ref
-# (record-on globs; a release line always counts).
+# Sets DR_RECORDED: whether tag/release/branch are written (record: false
+# never; else record-on globs, where a release line always counts).
 dr_resolve_recorded() {
   local ref pattern patterns
   DR_RECORDED=true
+  # record: false — a trial run (e.g. a staging-channel patch): notes only,
+  # whatever the ref.
+  if ! dr_bool "${DR_RECORD:-true}" record; then
+    DR_RECORDED=false
+    dr_info "record: false — only the notes and summary are written (no tag, release or branch)."
+    return 0
+  fi
   [ -n "${DR_RECORD_ON:-}" ] || return 0
   [ -z "$DR_L_LINE" ] || return 0
   ref=$(dr_ref_name)
