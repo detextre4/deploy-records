@@ -6,6 +6,26 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-30
+
+### Added
+
+- `base-version` (`kind: patch`): patch a specific release instead of the
+  most recent one. Its release tag must exist, otherwise `prepare` fails
+  before the build; empty or `latest` keeps the previous behaviour.
+- `branch-update: fast-forward`: move an existing version branch up to the
+  deployed commit, so a release's branch follows its patches. It never
+  force-pushes: when the deployed commit doesn't descend from the branch, the
+  branch is left alone with a warning. Default `never` keeps the previous
+  behaviour.
+- Outputs `base-tag` and `patch` (the release patched and the patch number)
+  and `branch-updated`.
+
+### Changed
+
+- Releases published for a patch are named `<platform> v<version>-patch<n>`
+  by default instead of sharing their base release's name.
+
 ## [1.1.1] - 2026-10-15
 
 ### Changed
