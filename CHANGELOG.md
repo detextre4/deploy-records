@@ -6,6 +6,20 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-30
+
+### Added
+
+- `release-lines`: version branches become release lines. A patch run on
+  one patches that release (an explicit `base-version` must match it),
+  `kind: release` on a line fails, and off a line a patch may only target
+  the latest release — the error names the line to run on. Replaces the
+  ref checks callers had to script around `base-version`.
+- `record-on`: refs (globs) where the tag, release and branch are written;
+  elsewhere only the notes and summary are, and an existing tag doesn't fail
+  `prepare`. A release line always records.
+- Outputs `recorded` and `release-line`.
+
 ## [1.2.0] - 2026-10-30
 
 ### Added

@@ -30,6 +30,7 @@ dr_validate_inputs() {
   dr_bool "${DR_SUMMARY:-true}" summary || true
   dr_bool "${DR_RELEASE:-false}" release || true
   dr_bool "${DR_BRANCH:-false}" branch || true
+  dr_bool "${DR_RELEASE_LINES:-false}" release-lines || true
   if dr_bool "${DR_RELEASE:-false}" release && [ "${DR_TAG:-annotated}" = none ]; then
     dr_fail "release: true needs a tag — set 'tag' to annotated or lightweight."
   fi
@@ -39,9 +40,14 @@ dr_validate_inputs() {
 dr_prepare() {
   local kind=${DR_KIND:-release}
   dr_resolve_version
+  dr_resolve_line "$kind"
   dr_resolve_tag "$kind"
+  dr_check_line_policy "$kind"
+  dr_resolve_recorded
 
-  if [ "$DR_T_EXISTS" = true ]; then
+  if [ "$DR_T_EXISTS" = true ] && [ "$DR_RECORDED" = false ]; then
+    dr_info "Tag $DR_T_TAG already exists — ignored, nothing is recorded on this ref."
+  elif [ "$DR_T_EXISTS" = true ]; then
     case "${DR_ON_EXISTING:-fail}" in
       fail) dr_fail "Tag $DR_T_TAG already exists — bump the version (or its +build number) before recording this $kind again, or set on-existing to skip/use/overwrite." ;;
       skip) dr_warn "Tag $DR_T_TAG already exists — on-existing=skip: no tag or release will be created." ;;
@@ -61,7 +67,7 @@ dr_prepare() {
     previous_tag "$DR_T_PREVIOUS" \
     tag_exists "$DR_T_EXISTS" \
     base_tag "$DR_T_BASE_TAG" \
-    patch "$DR_T_PATCH"
+    patch "$DR_T_PATCH"     recorded "$DR_RECORDED"     release_line "$DR_L_LINE"
 
   dr_set_output version "$DR_V_FULL"
   dr_set_output version-name "$DR_V_NAME"
@@ -71,6 +77,8 @@ dr_prepare() {
   dr_set_output tag-exists "$DR_T_EXISTS"
   dr_set_output base-tag "$DR_T_BASE_TAG"
   dr_set_output patch "$DR_T_PATCH"
+  dr_set_output recorded "$DR_RECORDED"
+  dr_set_output release-line "$DR_L_LINE"
 }
 
 # Restores what prepare resolved (same job, same id).
@@ -85,6 +93,8 @@ dr_load_state() {
   DR_T_EXISTS=$(dr_state_get tag_exists)
   DR_T_BASE_TAG=$(dr_state_get base_tag)
   DR_T_PATCH=$(dr_state_get patch)
+  DR_RECORDED=$(dr_state_get recorded)
+  DR_L_LINE=$(dr_state_get release_line)
 }
 
 dr_finalize() {
@@ -114,6 +124,8 @@ dr_finalize() {
   dr_set_output tag-exists "$DR_T_EXISTS"
   dr_set_output base-tag "$DR_T_BASE_TAG"
   dr_set_output patch "$DR_T_PATCH"
+  dr_set_output recorded "${DR_RECORDED:-true}"
+  dr_set_output release-line "$DR_L_LINE"
   dr_set_output notes-path "$notes"
   dr_set_output notes "$(cat "$notes")"
 }

@@ -41,6 +41,20 @@ inputs:
   branch-template:
     description: Branch name template. Default "version/{{platform_lower}}/{{version}}" ("version/{{version}}" without platform).
     default: ''
+  record-on:
+    description: >-
+      Refs (globs, comma- or newline-separated, e.g. "deploy/android") where
+      the tag, release and branch are written. Elsewhere only the notes and
+      summary are, and an existing tag doesn't fail. Empty = every ref. Set it
+      on prepare (or all).
+    default: ''
+  release-lines:
+    description: >-
+      Treat version branches (branch-template) as release lines. A patch run
+      on one patches that release; kind=release there fails; off a line, a
+      patch may only target the latest release; a line is always recorded.
+      Set it on prepare (or all).
+    default: 'false'
   remote:
     description: Git remote the tag and branch are pushed to.
     default: origin
@@ -185,6 +199,12 @@ outputs:
   patch:
     description: kind=patch — the patch number (empty otherwise).
     value: ${{ steps.run.outputs.patch }}
+  recorded:
+    description: Whether this ref writes the tag/release/branch (record-on / release line).
+    value: ${{ steps.run.outputs.recorded }}
+  release-line:
+    description: The release line (version branch) this run is on, empty if none.
+    value: ${{ steps.run.outputs.release-line }}
   tag-created:
     description: Whether finalize pushed the tag.
     value: ${{ steps.run.outputs.tag-created }}
@@ -222,6 +242,8 @@ runs:
         DR_BRANCH: ${{ inputs.branch }}
         DR_BRANCH_UPDATE: ${{ inputs.branch-update }}
         DR_BRANCH_TEMPLATE: ${{ inputs.branch-template }}
+        DR_RECORD_ON: ${{ inputs.record-on }}
+        DR_RELEASE_LINES: ${{ inputs.release-lines }}
         DR_REMOTE: ${{ inputs.remote }}
         DR_NOTES_FILE: ${{ inputs.notes-file }}
         DR_VERSION: ${{ inputs.version }}

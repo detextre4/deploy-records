@@ -56,6 +56,7 @@ The same body goes to the job summary and the tag message.
 - [Modes: one step or prepare + finalize](#modes-one-step-or-prepare--finalize)
 - [Kinds and tag templates](#kinds-and-tag-templates)
 - [Patching a specific release](#patching-a-specific-release)
+- [Release lines](#release-lines) · [Recording only on some refs](#recording-only-on-some-refs)
 - [Version](#version)
 - [Notes](#notes)
 - [When the tag already exists](#when-the-tag-already-exists)
@@ -164,6 +165,60 @@ matches what was actually patched:
   tag behind and the numbering stays in step.
 - Patch releases are named `<platform> v<version>-patch<n>` by default.
 
+## Release lines
+
+`release-lines: 'true'` turns that workflow into rules the action enforces,
+so the caller doesn't script them. Each version branch (`branch-template`,
+default `version/<platform>/<version>`) is the support line of its release:
+
+| Run on | `kind: release` | `kind: patch` |
+|---|---|---|
+| A release line, e.g. `version/android/1.2.0+7` | fails | patches **that** release (`base-version` empty/`latest` or equal to it, anything else fails) |
+| Any other ref (your deploy branch) | as usual | only the **latest** release; an older one fails and names the line to run on |
+
+```yaml
+- id: records
+  uses: detextre4/deploy-records@v1
+  with:
+    mode: prepare
+    platform: Android
+    kind: ${{ inputs.action_type == 'release' && 'release' || 'patch' }}
+    base-version: ${{ inputs.release_version }}
+    release-lines: 'true'
+    record-on: deploy/android
+# ... build / shorebird patch --release-version=${{ steps.records.outputs.version }} ...
+- uses: detextre4/deploy-records@v1
+  with:
+    mode: finalize
+    platform: Android
+    release: ${{ inputs.action_type == 'release' }}
+    branch: 'true'                 # release: creates the line; patch: moves it forward
+    branch-update: fast-forward
+```
+
+To patch an older release: create its line if it doesn't exist yet (e.g.
+`git push origin 'Android-v1.2.0+7^{commit}:refs/heads/version/android/1.2.0+7'`),
+cherry-pick the fix onto it and run the workflow on that branch. Remember a
+`workflow_dispatch` runs the workflow file of the branch it is dispatched on,
+so the line needs your current workflow too.
+
+The line comes from `GITHUB_REF_NAME` (the checked-out branch outside
+Actions); output `release-line` names it, empty off a line. The
+`branch-template` may only use `{{version}}` (once), `{{platform}}` and
+`{{platform_lower}}`. Set `release-lines` on `prepare` (or `all`):
+`finalize` reuses what it decided.
+
+## Recording only on some refs
+
+`record-on` lists the refs (globs, comma- or newline-separated) where the
+tag, release and branch are written, e.g. `record-on: deploy/android` or
+`record-on: main, release/*`. On any other ref only the notes and summary are
+produced (handy for dry runs from feature branches) and an existing tag
+doesn't fail `prepare`. With `release-lines`, a release line always records.
+Output `recorded` says which case applied, for later steps such as
+notifications (`if: steps.records.outputs.recorded == 'true'`). Empty (the
+default) records everywhere. Set it on `prepare` (or `all`).
+
 ## Version
 
 | Source | Inputs |
@@ -240,6 +295,8 @@ placeholders are left in place with a warning.
 | `tag` | `annotated` | `none`, `annotated` or `lightweight` |
 | `release` | `false` | Publish a GitHub Release |
 | `branch` | `false` | Push a version branch |
+| `record-on` | — | Refs (globs) where tag/release/branch are written; empty = all |
+| `release-lines` | `false` | Version branches as release lines (see [Release lines](#release-lines)) |
 | `branch-update` | `never` | `never` or `fast-forward` an existing version branch |
 | `branch-template` | `version/{{platform_lower}}/{{version}}` | Branch name (`version/{{version}}` without platform) |
 | `remote` | `origin` | Remote for the tag and branch |
@@ -290,6 +347,8 @@ placeholders are left in place with a warning.
 | `release-url` | The release page (empty if none) |
 | `branch` / `branch-created` | The version branch name / whether it was pushed now |
 | `branch-updated` | Whether an existing version branch was fast-forwarded now |
+| `recorded` | Whether this ref writes the tag/release/branch (`record-on`, release line) |
+| `release-line` | The release line this run is on (empty if none) |
 
 ## Placeholders
 
