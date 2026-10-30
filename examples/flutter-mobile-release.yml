@@ -35,8 +35,13 @@ jobs:
           mode: prepare
           platform: Android
           kind: ${{ inputs.action_type == 'release' && 'release' || 'patch' }}
-          base-version: ${{ inputs.action_type != 'release' && inputs.release_version || '' }}
+          base-version: ${{ inputs.release_version }}
           require-build-number: 'true'
+          # Patch an older release by running this workflow on its line
+          # (version/android/<version>); from deploy/android only the latest.
+          release-lines: 'true'
+          # Feature-branch runs only render the notes: no tag/release/branch.
+          record-on: deploy/android
 
       # ... setup Flutter/Shorebird ...
       - name: Shorebird release
@@ -69,4 +74,8 @@ jobs:
           release: ${{ inputs.action_type == 'release' }}
           branch: 'true'
           branch-update: fast-forward
+
+      - name: Notify
+        if: steps.records.outputs.recorded == 'true'
+        run: echo "recorded ${{ steps.records.outputs.tag }}"
           files: build/app/outputs/flutter-apk/app-prod-release.apk

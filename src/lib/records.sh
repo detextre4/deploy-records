@@ -301,11 +301,8 @@ dr_fast_forward_branch() {
 # branch is left alone — a re-run must not rewrite a release line — unless
 # branch-update=fast-forward, which only ever moves it forward.
 dr_push_branch() {
-  local template=${DR_BRANCH_TEMPLATE:-} name unresolved remote=${DR_REMOTE:-origin}
-  if [ -z "$template" ]; then
-    if [ -n "${DR_PLATFORM:-}" ]; then template='version/{{platform_lower}}/{{version}}'; else template='version/{{version}}'; fi
-  fi
-  name=$(dr_render "$(dr_render_version "$(dr_render_context "$template")" "$DR_V_FULL" "$DR_V_BUILD")" tag "$DR_T_TAG")
+  local name unresolved remote=${DR_REMOTE:-origin}
+  name=$(dr_branch_name "$DR_V_FULL" "$DR_V_BUILD" "$DR_T_TAG")
   unresolved=$(dr_unresolved "$name")
   [ -z "$unresolved" ] || dr_fail "branch-template has an unknown placeholder $unresolved."
   git check-ref-format --branch "$name" > /dev/null 2>&1 || dr_fail "'$name' is not a valid branch name (from branch-template)."
@@ -337,6 +334,16 @@ dr_push_branch() {
 dr_records() {
   local notes=$1 want_tag=true
   [ "${DR_TAG:-annotated}" = none ] && want_tag=false
+
+  if [ "${DR_RECORDED:-true}" = false ]; then
+    dr_info "not a record-on ref — no tag, release or branch written."
+    dr_set_output tag-created false
+    dr_set_output release-url ""
+    dr_set_output branch ""
+    dr_set_output branch-created false
+    dr_set_output branch-updated false
+    return 0
+  fi
 
   if [ "$DR_T_EXISTS" = true ] && [ "${DR_ON_EXISTING:-fail}" = skip ]; then
     dr_info "tag $DR_T_TAG already exists (on-existing=skip) — no tag or release created."

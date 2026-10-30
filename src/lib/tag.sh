@@ -187,3 +187,111 @@ dr_resolve_tag() {
 
   if dr_tag_exists "$DR_T_TAG"; then DR_T_EXISTS=true; else DR_T_EXISTS=false; fi
 }
+
+# --- Release lines -------------------------------------------------------
+# With release-lines on, each version branch is the support line of its
+# release: a patch run on it patches that release, and a patch of an older
+# release has to run on its own line (trunk carries newer code).
+
+# The ref this run is on (GITHUB_REF_NAME, else the checked-out branch).
+dr_ref_name() {
+  if [ -n "${GITHUB_REF_NAME:-}" ]; then
+    printf '%s' "$GITHUB_REF_NAME"
+  else
+    git symbolic-ref --short -q HEAD 2> /dev/null || true
+  fi
+}
+
+dr_branch_template() {
+  if [ -n "${DR_BRANCH_TEMPLATE:-}" ]; then
+    printf '%s' "$DR_BRANCH_TEMPLATE"
+  elif [ -n "${DR_PLATFORM:-}" ]; then
+    printf '%s' 'version/{{platform_lower}}/{{version}}'
+  else
+    printf '%s' 'version/{{version}}'
+  fi
+}
+
+# dr_branch_name <version> <build> <tag> — the version branch of a release.
+dr_branch_name() {
+  dr_render "$(dr_render_version "$(dr_render_context "$(dr_branch_template)")" "$1" "$2")" tag "$3"
+}
+
+# Sets DR_L_LINE (the release line this run is on, empty if none) and, for a
+# patch on a line, DR_BASE_VERSION (the line's release).
+dr_resolve_line() {
+  local kind=$1 template prefix suffix ref version
+  DR_L_LINE=
+  dr_bool "${DR_RELEASE_LINES:-false}" release-lines || return 0
+
+  template=$(dr_render "$(dr_branch_template)" platform "${DR_PLATFORM:-}" \
+    platform_lower "$(printf '%s' "${DR_PLATFORM:-}" | tr '[:upper:]' '[:lower:]')")
+  prefix=${template%%"{{version}}"*}
+  suffix=${template#*"{{version}}"}
+  case "$template" in
+    *'{{version}}'*) ;;
+    *) prefix='{{' ;;
+  esac
+  case "$prefix$suffix" in
+    *'{{'*) dr_fail "release-lines needs a branch-template whose only placeholders are {{version}} (once), {{platform}} and {{platform_lower}} — got '$(dr_branch_template)'." ;;
+  esac
+
+  ref=$(dr_ref_name)
+  case "$ref" in
+    "$prefix"*"$suffix") ;;
+    *) return 0 ;;
+  esac
+  version=${ref#"$prefix"}
+  version=${version%"$suffix"}
+  [ -n "$version" ] || return 0
+  DR_L_LINE=$ref
+
+  case "$kind" in
+    release)
+      dr_fail "kind=release on the release line $ref — releases run from the main deploy branch; on $ref only patches of $version are allowed."
+      ;;
+    patch)
+      if dr_base_version_set && [ "$DR_BASE_VERSION" != "$version" ]; then
+        dr_fail "base-version $DR_BASE_VERSION doesn't match the release line $ref, which patches $version — leave base-version empty/latest or set it to $version."
+      fi
+      DR_BASE_VERSION=$version
+      ;;
+  esac
+  dr_info "release line $ref (release $version)"
+}
+
+# Off a release line, a patch may only target the most recent release.
+# Requires dr_resolve_tag to have run.
+dr_check_line_policy() {
+  local kind=$1 latest line
+  [ "$kind" = patch ] || return 0
+  [ -z "$DR_L_LINE" ] || return 0
+  dr_bool "${DR_RELEASE_LINES:-false}" release-lines || return 0
+
+  latest=$(dr_latest_tag "$(dr_glob_for "$(dr_template_for release)")" "$(dr_glob_for "$(dr_template_for patch)")")
+  [ -n "$latest" ] || return 0
+  [ "$DR_T_BASE_TAG" != "$latest" ] || return 0
+  line=$(dr_branch_name "$DR_V_FULL" "$DR_V_BUILD" "$DR_T_TAG")
+  dr_fail "$DR_T_BASE_TAG is not the latest release ($latest) — with release-lines, an older release is patched from its release line: branch $line off it (if missing), cherry-pick the fix there and run this workflow on $line."
+}
+
+# Sets DR_RECORDED: whether tag/release/branch are written on this ref
+# (record-on globs; a release line always counts).
+dr_resolve_recorded() {
+  local ref pattern patterns
+  DR_RECORDED=true
+  [ -n "${DR_RECORD_ON:-}" ] || return 0
+  [ -z "$DR_L_LINE" ] || return 0
+  ref=$(dr_ref_name)
+  patterns=$(printf '%s' "$DR_RECORD_ON" | tr ',' '\n')
+  while IFS= read -r pattern; do
+    pattern=$(printf '%s' "$pattern" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+    [ -n "$pattern" ] || continue
+    # shellcheck disable=SC2254  # unquoted on purpose: glob match
+    case "$ref" in $pattern) return 0 ;; esac
+  done <<PATTERNS
+$patterns
+PATTERNS
+  DR_RECORDED=false
+  dr_info "ref '$ref' is not in record-on — only the notes and summary are written (no tag, release or branch)."
+}

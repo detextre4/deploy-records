@@ -21,6 +21,9 @@ setup() {
   export GITHUB_STEP_SUMMARY="$BATS_TEST_TMPDIR/step_summary"
   export GITHUB_RUN_NUMBER=42
   export GITHUB_RUN_ATTEMPT=1
+  # The runner's own ref (the action's CI) must not leak into the throwaway
+  # repos: the checked-out branch decides, unless a test sets it.
+  unset GITHUB_REF_NAME
   mkdir -p "$RUNNER_TEMP"
   : > "$GITHUB_OUTPUT"
   : > "$GITHUB_STEP_SUMMARY"
