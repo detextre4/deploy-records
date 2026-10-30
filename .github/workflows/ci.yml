@@ -18,6 +18,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    # The suite takes ~6 minutes on Windows. A hang after the last test (a
+    # background git process keeping bats' output open) would otherwise run
+    # until GitHub's 6-hour job limit.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,6 +33,12 @@ jobs:
         run: |
           git config --global user.name ci
           git config --global user.email ci@example.com
+          # No detached gc/maintenance in the throwaway repos (bare remotes
+          # included): a background git outliving its test keeps bats waiting.
+          git config --global gc.auto 0
+          git config --global gc.autoDetach false
+          git config --global maintenance.auto false
+          git config --global receive.autogc false
           # Straight from bash, not via npx: on Windows the npm shim hands bats a
           # "D:/..." path, which bats rejects as not absolute.
           ./node_modules/bats/bin/bats --print-output-on-failure test
