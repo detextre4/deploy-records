@@ -90,6 +90,28 @@ json_field() {
   assert_output --partial "Could not push refs/tags/v1.0.0+1 (see the git output above)"
 }
 
+@test "a 403 elsewhere in git's output isn't taken for a permission error" {
+  pubspec 1.0.0+1
+  git remote add origin "$BATS_TEST_TMPDIR/run-4039/does-not-exist.git"
+  dr all
+  assert_failure
+  assert_output --partial "Could not push refs/tags/v1.0.0+1 (see the git output above)"
+  refute_output --partial "permissions: contents: write"
+
+  git tag -d v1.0.0+1 > /dev/null # created locally before the failed push
+  git init -q --bare "$BATS_TEST_TMPDIR/remote.git"
+  git remote set-url origin "$BATS_TEST_TMPDIR/remote.git"
+  cat > "$BATS_TEST_TMPDIR/remote.git/hooks/pre-receive" <<'HOOK'
+#!/bin/sh
+echo "fatal: unable to access 'https://github.com/o/r.git/': The requested URL returned error: 403" >&2
+exit 1
+HOOK
+  chmod +x "$BATS_TEST_TMPDIR/remote.git/hooks/pre-receive"
+  dr all DR_ID=https
+  assert_failure
+  assert_output --partial "Add 'permissions: contents: write'"
+}
+
 @test "release is created with the notes, flags and assets" {
   pubspec 1.3.0+1
   setup_remote

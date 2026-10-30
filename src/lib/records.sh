@@ -141,7 +141,7 @@ dr_git_push() {
     *'without `workflows` permission'* | *"without 'workflows' permission"*)
       return 2
       ;;
-    *'Permission to'*'denied'* | *'403'* | *'not allowed to push'*)
+    *'Permission to'*'denied'* | *'returned error: 403'* | *'not allowed to push'*)
       dr_fail "Could not push $refspec — the token can't write to the repository. Add 'permissions: contents: write' to the workflow (or pass a token that can)."
       ;;
     *)

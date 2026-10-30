@@ -26,6 +26,13 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 - Releases published for a patch are named `<platform> v<version>-patch<n>`
   by default instead of sharing their base release's name.
 
+### Fixed
+
+- A failed push is only reported as a missing `contents: write` permission
+  when git says so (`returned error: 403`, "Permission to … denied", "not
+  allowed to push"), not whenever `403` appears anywhere in its output — a
+  remote path or URL containing it gave a wrong diagnosis.
+
 ## [1.1.1] - 2026-10-15
 
 ### Changed
