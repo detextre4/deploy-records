@@ -107,13 +107,22 @@ dr_api_ref() {
   dr_http POST "$DR_API/repos/$DR_REPO/git/refs" "$DR_API_TMP/ref-out.json" --data-binary "@$DR_API_TMP/ref.json"
   [ "$DR_HTTP_STATUS" = 201 ] && return 0
   if [ "$DR_HTTP_STATUS" = 422 ] && [ "$overwrite" = true ]; then
-    path="${ref#refs/}"
-    path="${path%%/*}/$(dr_uri_escape "${path#*/}")"
-    dr_json_payload "sha=$sha" '!force=true' > "$DR_API_TMP/ref.json"
-    dr_http PATCH "$DR_API/repos/$DR_REPO/git/refs/$path" "$DR_API_TMP/ref-out.json" --data-binary "@$DR_API_TMP/ref.json"
-    [ "$DR_HTTP_STATUS" = 200 ] && return 0
+    dr_api_update_ref "$ref" "$sha" true
+    return 0
   fi
   dr_api_fail "Creating $ref through the API failed" "$DR_API_TMP/ref-out.json"
+}
+
+# dr_api_update_ref <full ref> <sha> <force: true|false> — moves an existing
+# ref; without force GitHub only accepts a fast-forward.
+dr_api_update_ref() {
+  local ref=$1 sha=$2 force=$3 path
+  dr_api_init
+  path="${ref#refs/}"
+  path="${path%%/*}/$(dr_uri_escape "${path#*/}")"
+  dr_json_payload "sha=$sha" "!force=$force" > "$DR_API_TMP/ref.json"
+  dr_http PATCH "$DR_API/repos/$DR_REPO/git/refs/$path" "$DR_API_TMP/ref-out.json" --data-binary "@$DR_API_TMP/ref.json"
+  [ "$DR_HTTP_STATUS" = 200 ] || dr_api_fail "Updating $ref through the API failed" "$DR_API_TMP/ref-out.json"
 }
 
 # dr_git_push <refspec> [--force] — 0 pushed; 2 rejected by GitHub's
@@ -132,7 +141,7 @@ dr_git_push() {
     *'without `workflows` permission'* | *"without 'workflows' permission"*)
       return 2
       ;;
-    *'Permission to'*'denied'* | *'403'* | *'not allowed to push'*)
+    *'Permission to'*'denied'* | *'returned error: 403'* | *'not allowed to push'*)
       dr_fail "Could not push $refspec — the token can't write to the repository. Add 'permissions: contents: write' to the workflow (or pass a token that can)."
       ;;
     *)
@@ -224,7 +233,10 @@ dr_publish_release() {
   dr_api_init
   DR_R_NAME=${DR_RELEASE_NAME:-}
   if [ -z "$DR_R_NAME" ]; then
-    if [ -n "${DR_PLATFORM:-}" ]; then DR_R_NAME="$DR_PLATFORM v$DR_V_FULL"; else DR_R_NAME="v$DR_V_FULL"; fi
+    DR_R_NAME="v$DR_V_FULL"
+    # Patches of one release would otherwise all share its name.
+    [ "${DR_N_KIND:-}" = patch ] && [ -n "${DR_T_PATCH:-}" ] && DR_R_NAME="$DR_R_NAME-patch$DR_T_PATCH"
+    [ -n "${DR_PLATFORM:-}" ] && DR_R_NAME="$DR_PLATFORM $DR_R_NAME"
   fi
 
   tmp="$(dirname "$(dr_state_file)")/release-${DR_ID:-default}"
@@ -253,8 +265,41 @@ dr_publish_release() {
   dr_set_output release-url "$url"
 }
 
+# dr_fast_forward_branch <name> — moves an existing version branch up to
+# HEAD, only when HEAD descends from it (never a force push). Anything else
+# is a warning, not a failure: this runs after the deploy itself succeeded.
+dr_fast_forward_branch() {
+  local name=$1 remote=${DR_REMOTE:-origin} tip head rc
+  head=$(git rev-parse HEAD)
+  if ! git fetch -q "$remote" "refs/heads/$name" 2> /dev/null; then
+    dr_warn "Could not fetch branch $name from $remote — left as is."
+    return 0
+  fi
+  tip=$(git rev-parse FETCH_HEAD)
+  if [ "$tip" = "$head" ]; then
+    dr_info "branch $name is already at the deployed commit."
+    return 0
+  fi
+  if ! git merge-base --is-ancestor "$tip" "$head"; then
+    dr_warn "Branch $name (${tip:0:8}) is not an ancestor of the deployed commit (${head:0:8}) — not fast-forwarded. Deploy from that branch (or a branch built on it) to advance it."
+    return 0
+  fi
+
+  if dr_git_push "HEAD:refs/heads/$name"; then
+    dr_info "fast-forwarded branch $name to ${head:0:8}"
+  else
+    rc=$?
+    [ "$rc" = 2 ] || return "$rc"
+    dr_workflows_fallback_note "branch $name"
+    dr_api_update_ref "refs/heads/$name" "$head" false
+    dr_info "fast-forwarded branch $name to ${head:0:8} through the API"
+  fi
+  dr_set_output branch-updated true
+}
+
 # Version branch at the deployed commit (support/hotfix line). An existing
-# branch is never moved — a re-run must not rewrite a release line.
+# branch is left alone — a re-run must not rewrite a release line — unless
+# branch-update=fast-forward, which only ever moves it forward.
 dr_push_branch() {
   local template=${DR_BRANCH_TEMPLATE:-} name unresolved remote=${DR_REMOTE:-origin}
   if [ -z "$template" ]; then
@@ -265,10 +310,15 @@ dr_push_branch() {
   [ -z "$unresolved" ] || dr_fail "branch-template has an unknown placeholder $unresolved."
   git check-ref-format --branch "$name" > /dev/null 2>&1 || dr_fail "'$name' is not a valid branch name (from branch-template)."
   dr_set_output branch "$name"
+  dr_set_output branch-updated false
 
   if git ls-remote --exit-code --heads "$remote" "$name" > /dev/null 2>&1; then
-    dr_info "branch $name already exists on $remote — left as is."
     dr_set_output branch-created false
+    if [ "${DR_BRANCH_UPDATE:-never}" = fast-forward ]; then
+      dr_fast_forward_branch "$name"
+    else
+      dr_info "branch $name already exists on $remote — left as is."
+    fi
     return 0
   fi
   if dr_git_push "HEAD:refs/heads/$name"; then
@@ -316,5 +366,6 @@ dr_records() {
   else
     dr_set_output branch ""
     dr_set_output branch-created false
+    dr_set_output branch-updated false
   fi
 }

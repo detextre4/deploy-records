@@ -97,11 +97,29 @@ dr_version_from_release_tag() {
   printf '%s' "${tag%"$suffix"}"
 }
 
+# Whether base-version names a release (empty and "latest" mean the most
+# recent one).
+dr_base_version_set() {
+  case "$(printf '%s' "${DR_BASE_VERSION:-}" | tr '[:upper:]' '[:lower:]')" in
+    '' | latest) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
 # Sets DR_T_TAG, DR_T_PREVIOUS, DR_T_EXISTS, DR_T_BASE_TAG, DR_T_PATCH.
 dr_resolve_tag() {
   local kind=$1 template release_glob patch_glob version build count unresolved
   DR_T_BASE_TAG=
   DR_T_PATCH=
+
+  if dr_base_version_set; then
+    [ "$kind" = patch ] ||
+      dr_fail "base-version only applies to kind=patch (got kind=$kind) — leave it empty or 'latest'."
+    if dr_bool "${DR_REQUIRE_BUILD_NUMBER:-false}" require-build-number; then
+      printf '%s' "$DR_BASE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$' ||
+        dr_fail "base-version '$DR_BASE_VERSION' must be major.minor.patch+build (e.g. 1.3.0+1) — require-build-number is on."
+    fi
+  fi
 
   if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
     dr_warn "Shallow clone: earlier tags aren't visible, so the previous tag, patch numbering and the existing-tag check can be wrong. Use actions/checkout with fetch-depth: 0."
@@ -117,16 +135,25 @@ dr_resolve_tag() {
       ;;
     patch)
       patch_glob=$(dr_glob_for "$(dr_template_for patch)")
-      DR_T_BASE_TAG=$(dr_latest_tag "$release_glob" "$patch_glob")
-      if [ -z "$DR_T_BASE_TAG" ]; then
+      if dr_base_version_set; then
+        # An explicit base: exactly that release, which must have been recorded.
+        version=$DR_BASE_VERSION
+        case "$version" in *+*) build=${version#*+} ;; *) build= ;; esac
         DR_T_BASE_TAG=$(dr_render_version "$(dr_render_context "$(dr_template_for release)")" "$version" "$build")
-        dr_warn "No release tag matching '$release_glob' found; numbering this patch against '$DR_T_BASE_TAG' (the current version)."
+        dr_tag_exists "$DR_T_BASE_TAG" ||
+          dr_fail "base-version $version: release tag $DR_T_BASE_TAG not found — patch a version that was released (and tagged), or leave base-version empty/latest for the most recent release."
       else
-        local tagged
-        tagged=$(dr_version_from_release_tag "$DR_T_BASE_TAG")
-        if [ -n "$tagged" ]; then
-          version=$tagged
-          case "$tagged" in *+*) build=${tagged#*+} ;; *) build= ;; esac
+        DR_T_BASE_TAG=$(dr_latest_tag "$release_glob" "$patch_glob")
+        if [ -z "$DR_T_BASE_TAG" ]; then
+          DR_T_BASE_TAG=$(dr_render_version "$(dr_render_context "$(dr_template_for release)")" "$version" "$build")
+          dr_warn "No release tag matching '$release_glob' found; numbering this patch against '$DR_T_BASE_TAG' (the current version)."
+        else
+          local tagged
+          tagged=$(dr_version_from_release_tag "$DR_T_BASE_TAG")
+          if [ -n "$tagged" ]; then
+            version=$tagged
+            case "$tagged" in *+*) build=${tagged#*+} ;; *) build= ;; esac
+          fi
         fi
       fi
       count=$(git tag -l "$(dr_glob_for "$(dr_render "$(dr_template_for patch)" base_tag "$DR_T_BASE_TAG")")" | wc -l | tr -d ' ')

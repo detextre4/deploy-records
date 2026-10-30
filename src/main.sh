@@ -25,6 +25,7 @@ dr_validate_inputs() {
   dr_one_of "${DR_KIND:-release}" kind release patch testing
   dr_one_of "${DR_TAG:-annotated}" tag none annotated lightweight
   dr_one_of "${DR_ON_EXISTING:-fail}" on-existing fail skip use overwrite
+  dr_one_of "${DR_BRANCH_UPDATE:-never}" branch-update never fast-forward
   dr_one_of "${DR_LANGUAGE:-en}" language en es
   dr_bool "${DR_SUMMARY:-true}" summary || true
   dr_bool "${DR_RELEASE:-false}" release || true
@@ -68,6 +69,8 @@ dr_prepare() {
   dr_set_output tag "$DR_T_TAG"
   dr_set_output previous-tag "$DR_T_PREVIOUS"
   dr_set_output tag-exists "$DR_T_EXISTS"
+  dr_set_output base-tag "$DR_T_BASE_TAG"
+  dr_set_output patch "$DR_T_PATCH"
 }
 
 # Restores what prepare resolved (same job, same id).
@@ -80,6 +83,8 @@ dr_load_state() {
   DR_T_TAG=$(dr_state_get tag)
   DR_T_PREVIOUS=$(dr_state_get previous_tag)
   DR_T_EXISTS=$(dr_state_get tag_exists)
+  DR_T_BASE_TAG=$(dr_state_get base_tag)
+  DR_T_PATCH=$(dr_state_get patch)
 }
 
 dr_finalize() {
@@ -107,6 +112,8 @@ dr_finalize() {
   dr_set_output tag "$DR_T_TAG"
   dr_set_output previous-tag "$DR_T_PREVIOUS"
   dr_set_output tag-exists "$DR_T_EXISTS"
+  dr_set_output base-tag "$DR_T_BASE_TAG"
+  dr_set_output patch "$DR_T_PATCH"
   dr_set_output notes-path "$notes"
   dr_set_output notes "$(cat "$notes")"
 }
