@@ -124,3 +124,63 @@ load test_helper
   assert_line "tag=Android-v1.3.0+1"
   assert_line "version=1.3.0+1"
 }
+
+@test "base-version patches that release, not the latest one" {
+  pubspec 1.2.0+1
+  tag Android-v1.2.0+1
+  commit "fix: old line"
+  tag Android-v1.2.0+1-patch1
+  pubspec 1.3.0+1
+  tag Android-v1.3.0+1
+  commit "fix: for 1.2.0+1"
+  dr prepare DR_KIND=patch DR_PLATFORM=Android DR_BASE_VERSION=1.2.0+1
+  assert_success
+  assert_equal "$(output tag)" "Android-v1.2.0+1-patch2"
+  assert_equal "$(output base-tag)" "Android-v1.2.0+1"
+  assert_equal "$(output patch)" "2"
+  assert_equal "$(output version)" "1.2.0+1"
+  assert_equal "$(output build-number)" "1"
+}
+
+@test "base-version empty or latest keeps the most recent release" {
+  pubspec 1.2.0+1
+  tag Android-v1.2.0+1
+  pubspec 1.3.0+1
+  tag Android-v1.3.0+1
+  commit "fix: x"
+  dr prepare DR_KIND=patch DR_PLATFORM=Android DR_BASE_VERSION=latest
+  assert_success
+  assert_equal "$(output tag)" "Android-v1.3.0+1-patch1"
+  assert_equal "$(output base-tag)" "Android-v1.3.0+1"
+  : > "$GITHUB_OUTPUT"
+  dr prepare DR_KIND=patch DR_PLATFORM=Android DR_BASE_VERSION=
+  assert_success
+  assert_equal "$(output tag)" "Android-v1.3.0+1-patch1"
+}
+
+@test "base-version without its release tag fails" {
+  pubspec 1.3.0+1
+  tag Android-v1.3.0+1
+  dr prepare DR_KIND=patch DR_PLATFORM=Android DR_BASE_VERSION=1.1.0+9
+  assert_failure
+  assert_output --partial "release tag Android-v1.1.0+9 not found"
+}
+
+@test "base-version is only for patches and honours require-build-number" {
+  pubspec 1.3.0+1
+  tag Android-v1.2.0
+  dr prepare DR_PLATFORM=Android DR_BASE_VERSION=1.2.0
+  assert_failure
+  assert_output --partial "base-version only applies to kind=patch"
+  dr prepare DR_KIND=patch DR_PLATFORM=Android DR_BASE_VERSION=1.2.0 DR_REQUIRE_BUILD_NUMBER=true
+  assert_failure
+  assert_output --partial "base-version '1.2.0' must be major.minor.patch+build"
+}
+
+@test "release kind leaves base-tag and patch empty" {
+  pubspec 1.3.0+1
+  dr prepare DR_PLATFORM=Android
+  assert_success
+  assert_equal "$(output base-tag)" ""
+  assert_equal "$(output patch)" ""
+}

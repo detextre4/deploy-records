@@ -55,6 +55,7 @@ The same body goes to the job summary and the tag message.
 - [Records](#records)
 - [Modes: one step or prepare + finalize](#modes-one-step-or-prepare--finalize)
 - [Kinds and tag templates](#kinds-and-tag-templates)
+- [Patching a specific release](#patching-a-specific-release)
 - [Version](#version)
 - [Notes](#notes)
 - [When the tag already exists](#when-the-tag-already-exists)
@@ -73,8 +74,9 @@ The same body goes to the job summary and the tag message.
 | Notes file for later steps (Slack, store notes…) | `notes-file` | temp file, see `notes-path` output |
 
 Only the summary and a tag happen by default. A release needs a tag. An
-existing version branch is never moved, so re-running a workflow can't
-rewrite a published support line.
+existing version branch is never moved by default, so re-running a workflow
+can't rewrite a published support line; `branch-update: fast-forward` lets it
+move forward only (see [Patching a specific release](#patching-a-specific-release)).
 
 ## Modes: one step or prepare + finalize
 
@@ -105,8 +107,9 @@ even if files changed in between. Several pairs in one job are kept apart with
 Without `platform`, the defaults drop it: `v1.3.0+1`,
 `testing-v1.3.0+1-run42`.
 
-- **Patches** are numbered per base release: `{{base_tag}}` is the most
-  recent release tag (by creation date) and `{{patch}}` is one more than the
+- **Patches** are numbered per base release: `{{base_tag}}` is the release
+  named by `base-version` or, when that is empty/`latest`, the most recent
+  release tag (by creation date), and `{{patch}}` is one more than the
   patches it already has. The patch is labelled with the base release's
   version, not the current file's: after bumping `pubspec.yaml` to `1.4.0+1`
   for the next release, a Shorebird-style patch of `1.3.0+1` still gets
@@ -118,6 +121,48 @@ Without `platform`, the defaults drop it: `v1.3.0+1`,
   `web/{{version_name}}/b{{build_number}}`. An unknown placeholder fails the
   step. `previous-tag-pattern` overrides the glob used to find the previous
   tag.
+
+## Patching a specific release
+
+Over-the-air patches (Shorebird, CodePush…) target one store release while
+newer ones may already be out. Point the patch at its release so the record
+matches what was actually patched:
+
+```yaml
+- id: records
+  uses: detextre4/deploy-records@v1
+  with:
+    mode: prepare
+    platform: Android
+    kind: patch
+    base-version: ${{ inputs.release_version }}   # e.g. 1.2.0+7; empty/"latest" = most recent
+# The resolved base is the single source of truth for the patch tool too:
+- run: shorebird patch android --release-version=${{ steps.records.outputs.version }}
+- uses: detextre4/deploy-records@v1
+  with:
+    mode: finalize
+    platform: Android
+    branch: 'true'
+    branch-update: fast-forward
+```
+
+- `base-version` must name a release whose tag exists
+  (`Android-v1.2.0+7`), otherwise `prepare` fails before the build. It only
+  applies to `kind: patch`, and follows `require-build-number`. The release
+  tag template must depend only on the version/platform for it to resolve.
+- Outputs `base-tag` (`Android-v1.2.0+7`) and `patch` (`3`) tell later steps
+  exactly what is being patched.
+- `branch-update: fast-forward` moves the release's version branch
+  (`version/android/1.2.0+7`) to the patched commit, so the branch always
+  holds what is live for that release, and the next patch (which replaces
+  this one) starts from it. It only ever moves forward: when the deployed
+  commit doesn't descend from the branch, the branch is left alone with a
+  warning (the deploy already happened, so the step doesn't fail). To patch an
+  older release, branch off its version branch, cherry-pick the fix and
+  deploy from there.
+- Run `finalize` after the patch was published, so a failed patch leaves no
+  tag behind and the numbering stays in step.
+- Patch releases are named `<platform> v<version>-patch<n>` by default.
 
 ## Version
 
@@ -195,6 +240,7 @@ placeholders are left in place with a warning.
 | `tag` | `annotated` | `none`, `annotated` or `lightweight` |
 | `release` | `false` | Publish a GitHub Release |
 | `branch` | `false` | Push a version branch |
+| `branch-update` | `never` | `never` or `fast-forward` an existing version branch |
 | `branch-template` | `version/{{platform_lower}}/{{version}}` | Branch name (`version/{{version}}` without platform) |
 | `remote` | `origin` | Remote for the tag and branch |
 | `notes-file` | temp file | Where to write the notes |
@@ -205,6 +251,7 @@ placeholders are left in place with a warning.
 | `require-build-number` | `false` | Require `+build` |
 | `platform` | — | Free-form label (`{{platform}}`) |
 | `tag-template-release` / `-patch` / `-testing` | see [Kinds](#kinds-and-tag-templates) | Tag name templates |
+| `base-version` | — | `kind: patch`: release being patched (empty/`latest` = most recent) |
 | `previous-tag-pattern` | derived | Glob for the previous tag |
 | `on-existing` | `fail` | `fail`, `skip`, `use`, `overwrite` |
 | `title` | `<platform> <kind>` | Notes heading |
@@ -220,7 +267,7 @@ placeholders are left in place with a warning.
 | `commit-format` | `- %s (%h)` | `git log --pretty` format |
 | `max-commits` | `150` | Cap on listed commits |
 | `include-merges` | `false` | List merge commits |
-| `release-name` | `<platform> v<version>` | Release title |
+| `release-name` | `<platform> v<version>` (`-patch<n>` for patches) | Release title |
 | `files` | — | Files to attach, one glob per line |
 | `draft` | `false` | Draft release |
 | `prerelease` | `false` | Pre-release |
@@ -237,10 +284,12 @@ placeholders are left in place with a warning.
 | `tag` | Resolved tag |
 | `previous-tag` | Where the commit list starts (empty = full history) |
 | `tag-exists` | Whether the tag existed when `prepare` ran |
+| `base-tag` / `patch` | `kind: patch`: the release tag patched / the patch number (empty otherwise) |
 | `tag-created` | Whether this run pushed the tag |
 | `notes-path` / `notes` | The notes file path / its Markdown |
 | `release-url` | The release page (empty if none) |
 | `branch` / `branch-created` | The version branch name / whether it was pushed now |
+| `branch-updated` | Whether an existing version branch was fast-forwarded now |
 
 ## Placeholders
 

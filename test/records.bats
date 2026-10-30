@@ -286,3 +286,101 @@ HOOK
   run cat "$FAKE_LOG"
   assert_output ""
 }
+
+remote_head() {
+  git --git-dir="$BATS_TEST_TMPDIR/remote.git" rev-parse "refs/heads/$1"
+}
+
+@test "branch-update=fast-forward moves a patched release's branch forward" {
+  pubspec 1.3.0+1
+  setup_remote
+  dr all DR_PLATFORM=Android DR_BRANCH=true
+  assert_success
+  release_sha=$(git rev-parse HEAD)
+
+  commit "fix: hot"
+  : > "$GITHUB_OUTPUT"
+  dr all DR_ID=p1 DR_KIND=patch DR_PLATFORM=Android DR_BRANCH=true DR_BRANCH_UPDATE=fast-forward
+  assert_success
+  assert_equal "$(output tag)" "Android-v1.3.0+1-patch1"
+  assert_equal "$(output branch)" "version/android/1.3.0+1"
+  assert_equal "$(output branch-created)" "false"
+  assert_equal "$(output branch-updated)" "true"
+  assert_equal "$(remote_head version/android/1.3.0+1)" "$(git rev-parse HEAD)"
+  [ "$release_sha" != "$(git rev-parse HEAD)" ]
+
+  # Re-run on the same commit: nothing to move.
+  : > "$GITHUB_OUTPUT"
+  dr all DR_ID=p1again DR_KIND=patch DR_PLATFORM=Android DR_TAG=none DR_BRANCH=true DR_BRANCH_UPDATE=fast-forward
+  assert_success
+  assert_equal "$(output branch-updated)" "false"
+  assert_output --partial "already at the deployed commit"
+}
+
+@test "branch-update=never (default) still leaves an existing branch alone" {
+  pubspec 1.3.0+1
+  setup_remote
+  dr all DR_PLATFORM=Android DR_BRANCH=true
+  release_sha=$(git rev-parse HEAD)
+  commit "fix: hot"
+  : > "$GITHUB_OUTPUT"
+  dr all DR_ID=p1 DR_KIND=patch DR_PLATFORM=Android DR_BRANCH=true
+  assert_success
+  assert_equal "$(output branch-updated)" "false"
+  assert_equal "$(remote_head version/android/1.3.0+1)" "$release_sha"
+}
+
+@test "branch-update=fast-forward never rewrites a diverged branch" {
+  pubspec 1.3.0+1
+  setup_remote
+  dr all DR_PLATFORM=Android DR_BRANCH=true
+  commit "fix: on the version branch"
+  git push -q origin HEAD:refs/heads/version/android/1.3.0+1
+  branch_sha=$(git rev-parse HEAD)
+  git reset -q --hard HEAD~1
+  commit "fix: elsewhere"
+  : > "$GITHUB_OUTPUT"
+  dr all DR_ID=p1 DR_KIND=patch DR_PLATFORM=Android DR_BRANCH=true DR_BRANCH_UPDATE=fast-forward
+  assert_success
+  assert_output --partial "is not an ancestor of the deployed commit"
+  assert_equal "$(output branch-updated)" "false"
+  assert_equal "$(remote_head version/android/1.3.0+1)" "$branch_sha"
+}
+
+@test "invalid branch-update fails" {
+  pubspec 1.3.0+1
+  dr prepare DR_BRANCH_UPDATE=force
+  assert_failure
+  assert_output --partial "Input 'branch-update' must be one of"
+}
+
+@test "API fallback: fast-forward is a non-forced ref update" {
+  pubspec 1.3.0+1
+  setup_remote
+  dr all DR_PLATFORM=Web DR_TAG=none DR_BRANCH=true
+  commit "fix: hot"
+  use_fake_api
+  reject_like_github
+  : > "$GITHUB_OUTPUT"
+  dr all DR_ID=p1 DR_KIND=patch DR_PLATFORM=Web DR_TAG=none DR_BRANCH=true DR_BRANCH_UPDATE=fast-forward
+  assert_success
+  assert_equal "$(output branch-updated)" "true"
+  run cat "$FAKE_LOG"
+  assert_line "PATCH https://api.github.com/repos/o/r/git/refs/heads/version%2Fweb%2F1.3.0%2B1"
+  assert_equal "$(json_field "$FAKE_DIR/body-1" sha)" "$(git rev-parse HEAD)"
+  assert_equal "$(json_field "$FAKE_DIR/body-1" force)" "false"
+}
+
+@test "patch releases are named after their patch number" {
+  pubspec 1.3.0+1
+  setup_remote
+  git tag -a Web-v1.3.0+1 -m r
+  git push -q origin Web-v1.3.0+1
+  commit "fix: hot"
+  use_fake_api
+  dr all DR_KIND=patch DR_PLATFORM=Web DR_RELEASE=true
+  assert_success
+  run cat "$FAKE_LOG"
+  assert_line "POST https://api.github.com/repos/o/r/releases"
+  assert_equal "$(json_field "$FAKE_DIR/body-2" name)" "Web v1.3.0+1-patch1"
+}

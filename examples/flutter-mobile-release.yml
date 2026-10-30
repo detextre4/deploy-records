@@ -1,7 +1,7 @@
 # Flutter Android production deploy with Shorebird releases and patches.
 # prepare runs before the (slow) build so a version that was already
 # released fails in seconds; finalize records everything once the build and
-# the store upload succeeded.
+# the store upload (or the patch) succeeded.
 name: Android Production
 
 on:
@@ -11,6 +11,9 @@ on:
         type: choice
         options: [release, patch-stable, patch-staging]
         default: release
+      release_version:
+        description: 'Patches only: release to patch (e.g. 1.3.0+1), "latest" = most recent'
+        default: latest
       note:
         required: false
 
@@ -32,10 +35,22 @@ jobs:
           mode: prepare
           platform: Android
           kind: ${{ inputs.action_type == 'release' && 'release' || 'patch' }}
+          base-version: ${{ inputs.action_type != 'release' && inputs.release_version || '' }}
           require-build-number: 'true'
 
-      # ... setup Flutter/Shorebird, build, upload to Play ...
-      - run: echo "building ${{ steps.records.outputs.version }}"
+      # ... setup Flutter/Shorebird ...
+      - name: Shorebird release
+        if: inputs.action_type == 'release'
+        run: shorebird release android --flavor prod
+
+      # The release resolved by prepare is the one Shorebird patches, so the
+      # record and the patch can't disagree.
+      - name: Shorebird patch
+        if: inputs.action_type != 'release'
+        env:
+          TRACK: ${{ inputs.action_type == 'patch-staging' && 'staging' || 'stable' }}
+          RELEASE: ${{ steps.records.outputs.version }}
+        run: shorebird patch android --flavor prod --track "$TRACK" --release-version "$RELEASE"
 
       - name: Record the deploy
         uses: detextre4/deploy-records@v1
@@ -48,8 +63,10 @@ jobs:
             Type|`${{ inputs.action_type }}`
             Flavor|prod
             API Version|`${{ vars.API_VERSION }}`
-          # Patches stay as an annotated tag; releases also get a GitHub
-          # Release with the APK and a support branch.
+          # Releases get a GitHub Release with the APK and a support branch;
+          # patches stay as an annotated tag and move that release's branch
+          # forward to the patched commit.
           release: ${{ inputs.action_type == 'release' }}
-          branch: ${{ inputs.action_type == 'release' }}
+          branch: 'true'
+          branch-update: fast-forward
           files: build/app/outputs/flutter-apk/app-prod-release.apk
