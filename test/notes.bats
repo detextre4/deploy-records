@@ -64,6 +64,78 @@ API Version|`v1`' DR_NOTE=hello
   assert_line '- Pending thing'
 }
 
+# patch_changelog — Unreleased plus a section for patch 2 of 1.3.0+1.
+patch_changelog() {
+  cat > CHANGELOG.md <<'MD'
+# Changelog
+
+## [Unreleased]
+- Pending thing
+
+## [1.3.0+1-patch.2]
+- Patch two thing
+
+## [1.3.0+1-parche.2]
+- Parche dos
+
+## [1.3.0+1-patch.3]
+
+## [1.3.0+1] - 2026-10-01
+- Released thing
+MD
+  git add CHANGELOG.md
+  git commit -q -m "docs: changelog"
+}
+
+@test "patch id from the pubspec picks its own section" {
+  printf 'name: app\nversion: 1.3.0+1\napp_patch: 2   # next patch\n' > pubspec.yaml
+  git add pubspec.yaml && commit "chore: patch id"
+  tag Android-v1.3.0+1
+  patch_changelog
+  dr all DR_TAG=none DR_KIND=patch DR_PLATFORM=Android
+  assert_success
+  run notes
+  assert_line '### 📋 Release notes (CHANGELOG.md — `[1.3.0+1-patch.2]`)'
+  assert_line '- Patch two thing'
+  refute_line '- Pending thing'
+}
+
+@test "patch id from package.json, custom key and section template" {
+  printf '{\n  "name": "app",\n  "version": "1.3.0+1",\n  "otaPatch": "2"\n}\n' > package.json
+  git add package.json && commit "chore: patch id"
+  tag v1.3.0+1
+  patch_changelog
+  dr all DR_TAG=none DR_KIND=patch DR_VERSION_FILE=package.json DR_PATCH_ID_KEY=otaPatch \
+    'DR_PATCH_SECTION_TEMPLATE={{version}}-parche.{{patch_id}}'
+  assert_success
+  run notes
+  assert_line '### 📋 Release notes (CHANGELOG.md — `[1.3.0+1-parche.2]`)'
+  assert_line '- Parche dos'
+}
+
+@test "explicit patch-id wins; an empty patch section falls back to Unreleased" {
+  printf 'name: app\nversion: 1.3.0+1\napp_patch: 2\n' > pubspec.yaml
+  git add pubspec.yaml && commit "chore: patch id"
+  tag Android-v1.3.0+1
+  patch_changelog
+  dr all DR_TAG=none DR_KIND=patch DR_PLATFORM=Android DR_PATCH_ID=3
+  assert_success
+  assert_output --partial "No entries under '## [1.3.0+1-patch.3]'"
+  run notes
+  assert_line '### 📋 Release notes (CHANGELOG.md — `[Unreleased]`)'
+  assert_line '- Pending thing'
+}
+
+@test "a release ignores the patch id" {
+  printf 'name: app\nversion: 1.3.0+1\napp_patch: 2\n' > pubspec.yaml
+  git add pubspec.yaml && commit "chore: patch id"
+  patch_changelog
+  dr all DR_TAG=none
+  assert_success
+  run notes
+  assert_line '### 📋 Release notes (CHANGELOG.md — `[1.3.0+1]`)'
+}
+
 @test "auto falls back to Unreleased when the version isn't closed yet" {
   pubspec 1.9.0+1
   changelog
