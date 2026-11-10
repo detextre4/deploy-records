@@ -17,6 +17,16 @@ dr_changelog_has_section() {
   grep -Fq "## [$2]" "$1"
 }
 
+# dr_patch_section_name <version> <patch id> — patch-section-template with
+# {{version}} and {{patch_id}} filled in (default "{{version}}-patch.{{patch_id}}").
+dr_patch_section_name() {
+  local name=${DR_PATCH_SECTION_TEMPLATE:-}
+  [ -n "$name" ] || name='{{version}}-patch.{{patch_id}}'
+  name=${name//\{\{version\}\}/$1}
+  name=${name//\{\{patch_id\}\}/$2}
+  printf '%s' "$name"
+}
+
 # dr_resolve_changelog <kind> <version>
 dr_resolve_changelog() {
   local kind=$1 version=$2 file=${DR_CHANGELOG_PATH:-CHANGELOG.md} mode=${DR_CHANGELOG_SECTION:-auto}
@@ -30,8 +40,22 @@ dr_resolve_changelog() {
 
   case "$mode" in
     auto)
-      # A patch ships whatever is pending, never its base release's notes.
-      if [ "$kind" != patch ] && dr_changelog_has_section "$file" "$version"; then
+      if [ "$kind" = patch ]; then
+        # A patch never ships its base release's notes: its own section
+        # when it has a patch id and that section has entries, else
+        # whatever is pending in Unreleased.
+        DR_C_LABEL=Unreleased
+        local patch_id patch_label
+        patch_id=$(dr_resolve_patch_id)
+        if [ -n "$patch_id" ]; then
+          patch_label=$(dr_patch_section_name "$version" "$patch_id")
+          if [ -n "$(dr_changelog_section "$file" "$patch_label" 2> /dev/null)" ]; then
+            DR_C_LABEL=$patch_label
+          else
+            dr_info "No entries under '## [$patch_label]' — using Unreleased."
+          fi
+        fi
+      elif dr_changelog_has_section "$file" "$version"; then
         DR_C_LABEL=$version
       else
         DR_C_LABEL=Unreleased

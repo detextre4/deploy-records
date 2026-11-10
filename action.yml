@@ -146,8 +146,23 @@ inputs:
     description: Keep a Changelog file. Missing file = section skipped.
     default: CHANGELOG.md
   changelog-section:
-    description: auto (version section, else Unreleased; patches always Unreleased) | version | unreleased | <exact section name>.
+    description: >-
+      auto (releases: the version section, else Unreleased; patches: the
+      patch section when it has entries, else Unreleased) | version |
+      unreleased | <exact section name>.
     default: auto
+  patch-id:
+    description: >-
+      kind=patch only — identifies the patch in the changelog, shared by every
+      platform (unlike the per-platform {{patch}} tag counter). Empty = read
+      patch-id-key from version-file; still empty = Unreleased, as before.
+    default: ''
+  patch-id-key:
+    description: Field of version-file holding the patch id. Empty = app_patch (pubspec) or appPatch (package.json).
+    default: ''
+  patch-section-template:
+    description: Changelog section name of a patch, with {{version}} and {{patch_id}}. Empty = "{{version}}-patch.{{patch_id}}".
+    default: ''
 
   # ------------------------------------------------------------- commits
   commit-format:
@@ -275,6 +290,9 @@ runs:
         DR_TEMPLATE_FILE: ${{ inputs.template-file }}
         DR_CHANGELOG_PATH: ${{ inputs.changelog-path }}
         DR_CHANGELOG_SECTION: ${{ inputs.changelog-section }}
+        DR_PATCH_ID: ${{ inputs.patch-id }}
+        DR_PATCH_ID_KEY: ${{ inputs.patch-id-key }}
+        DR_PATCH_SECTION_TEMPLATE: ${{ inputs.patch-section-template }}
         DR_COMMIT_FORMAT: ${{ inputs.commit-format }}
         DR_MAX_COMMITS: ${{ inputs.max-commits }}
         DR_INCLUDE_MERGES: ${{ inputs.include-merges }}

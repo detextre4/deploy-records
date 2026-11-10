@@ -35,6 +35,34 @@ dr_read_version_file() {
   esac
 }
 
+# dr_resolve_patch_id — the changelog patch id: an explicit patch-id input,
+# else the patch-id-key field of version-file (default app_patch in a
+# pubspec, appPatch in a package.json). Empty when neither is set, which
+# keeps patches on the Unreleased section. Unrelated to the per-platform
+# {{patch}} counter derived from tags.
+dr_resolve_patch_id() {
+  local file=${DR_VERSION_FILE:-pubspec.yaml} format=${DR_VERSION_FORMAT:-auto} key value
+  if [ -n "${DR_PATCH_ID:-}" ]; then
+    printf '%s' "$DR_PATCH_ID"
+    return 0
+  fi
+  [ -f "$file" ] || return 0
+  [ "$format" = auto ] && format=$(dr_version_format_for "$file")
+
+  case "$format" in
+    pubspec)
+      key=${DR_PATCH_ID_KEY:-app_patch}
+      value=$(sed -n "s/^${key}:[[:space:]]*//p" "$file" | head -n 1 | sed 's/[[:space:]]*#.*$//' | tr -d " \"'\r")
+      ;;
+    package-json)
+      key=${DR_PATCH_ID_KEY:-appPatch}
+      value=$(sed -n "s/^[[:space:]]*\"${key}\"[[:space:]]*:[[:space:]]*\"\{0,1\}\([^\",}]*\)\"\{0,1\}.*/\1/p" "$file" | head -n 1 | tr -d ' \r')
+      ;;
+    *) value= ;;
+  esac
+  printf '%s' "$value"
+}
+
 dr_resolve_version() {
   local version format
   if [ -n "${DR_VERSION:-}" ]; then

@@ -6,6 +6,15 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ## [Unreleased]
 
+### Added
+
+- Patch changelog sections: `patch-id` (or the `app_patch` / `appPatch` field
+  of `version-file`, see `patch-id-key`) gives a patch its own section,
+  `## [<version>-patch.<id>]` by default (`patch-section-template`), so a
+  patch's notes can be written while it's prepared instead of living in
+  `Unreleased`. Without an id, or with an empty section, patches still use
+  `Unreleased`.
+
 ## [1.4.0] - 2026-10-30
 
 ### Added

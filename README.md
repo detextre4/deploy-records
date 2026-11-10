@@ -249,9 +249,31 @@ default) records everywhere. Set it on `prepare` (or `all`).
   values are escaped so the table never breaks.
 - **changelog**: a section of a [Keep a Changelog](https://keepachangelog.com)
   file (`changelog-path`). `changelog-section: auto` takes the version's own
-  section (`## [1.3.0+1]`) or falls back to `## [Unreleased]`; patches always
-  use `Unreleased`, since they ship what's pending. Also `version`,
+  section (`## [1.3.0+1]`) or falls back to `## [Unreleased]`. Also `version`,
   `unreleased` or an exact section name. A missing file skips the section.
+
+**Patch sections**: a patch never takes its base release's section — it keeps
+the release's version (e.g. a Shorebird patch over `1.3.0+1`). By default it
+uses `Unreleased`. Give the patch an id shared by every platform (unlike the
+per-platform `{{patch}}` tag counter) and it gets its own section, written
+while you work on it:
+
+```yaml
+# pubspec.yaml            # package.json: "appPatch": 2
+version: 1.3.0+1
+app_patch: 2
+```
+
+```markdown
+## [Unreleased]          <- not assigned to a version or patch yet
+
+## [1.3.0+1-patch.2]     <- what patch 2 ships
+```
+
+The id comes from `patch-id`, else the `patch-id-key` field of `version-file`
+(`app_patch` / `appPatch`). The name follows `patch-section-template`
+(`{{version}}-patch.{{patch_id}}`). With no id, or an empty section, the patch
+uses `Unreleased`, as before.
 - **commits**: `git log` since the previous tag, `commit-format` (any
   `--pretty` format), capped at `max-commits` with a "+N more" line, merges
   excluded unless `include-merges`.
@@ -330,6 +352,9 @@ placeholders are left in place with a warning.
 | `template-file` | — | Your own Markdown template |
 | `changelog-path` | `CHANGELOG.md` | Keep a Changelog file |
 | `changelog-section` | `auto` | `auto`, `version`, `unreleased` or a name |
+| `patch-id` | | Patch id for its changelog section (else read from `version-file`) |
+| `patch-id-key` | | `version-file` field with the patch id (`app_patch` / `appPatch`) |
+| `patch-section-template` | `{{version}}-patch.{{patch_id}}` | Changelog section name of a patch |
 | `commit-format` | `- %s (%h)` | `git log --pretty` format |
 | `max-commits` | `150` | Cap on listed commits |
 | `include-merges` | `false` | List merge commits |
