@@ -6,6 +6,17 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-10
+
+### Added
+
+- `patch-sections` (default `accumulate`): with numeric patch ids, a patch
+  ships every changelog section since its platform's previous patch of the
+  same release, so a platform that skipped a patch still lists it (patches
+  are cumulative). Each patch records its id as an HTML comment in its notes
+  and annotated tag; a previous patch without one gets only the current
+  section. `single` keeps the 1.5.0 behaviour.
+
 ## [1.5.0] - 2026-11-10
 
 ### Added

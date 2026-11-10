@@ -160,6 +160,14 @@ inputs:
   patch-id-key:
     description: Field of version-file holding the patch id. Empty = app_patch (pubspec) or appPatch (package.json).
     default: ''
+  patch-sections:
+    description: >-
+      accumulate | single. accumulate (numeric patch ids) ships every
+      section from the one after this platform's previous patch up to this
+      one, so a platform that skipped a patch still lists it — patches are
+      cumulative. The id is recorded in the notes (an HTML comment) for the
+      next run. single = only this patch's section.
+    default: accumulate
   patch-section-template:
     description: Changelog section name of a patch, with {{version}} and {{patch_id}}. Empty = "{{version}}-patch.{{patch_id}}".
     default: ''
@@ -293,6 +301,7 @@ runs:
         DR_PATCH_ID: ${{ inputs.patch-id }}
         DR_PATCH_ID_KEY: ${{ inputs.patch-id-key }}
         DR_PATCH_SECTION_TEMPLATE: ${{ inputs.patch-section-template }}
+        DR_PATCH_SECTIONS: ${{ inputs.patch-sections }}
         DR_COMMIT_FORMAT: ${{ inputs.commit-format }}
         DR_MAX_COMMITS: ${{ inputs.max-commits }}
         DR_INCLUDE_MERGES: ${{ inputs.include-merges }}

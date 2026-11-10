@@ -102,7 +102,7 @@ dr_collapse() {
 
 dr_block_changelog() {
   [ -n "$DR_C_LABEL" ] || return 0
-  printf '### 📋 %s (%s — `[%s]`)\n\n' "$DR_L_changelog" "$(basename "${DR_CHANGELOG_PATH:-CHANGELOG.md}")" "$DR_C_LABEL"
+  printf '### 📋 %s (%s — `%s`)\n\n' "$DR_L_changelog" "$(basename "${DR_CHANGELOG_PATH:-CHANGELOG.md}")" "${DR_C_DISPLAY:-[$DR_C_LABEL]}"
   if [ -n "$DR_C_BODY" ]; then dr_collapse "$DR_C_BODY"; else printf '%s\n' "$DR_L_no_changelog"; fi
 }
 
@@ -196,5 +196,16 @@ dr_build_notes() {
     dr_layout_template > "$out"
   else
     dr_layout_default > "$out"
+  fi
+
+  # A patch records its id (see DR_PATCH_MARKER_PREFIX) so the next patch of
+  # this platform knows which changelog sections it already shipped.
+  local patch_id
+  if [ "$DR_N_KIND" = patch ]; then
+    patch_id=$(dr_resolve_patch_id)
+    case "$patch_id" in
+      '' | *[!A-Za-z0-9._-]*) ;;
+      *) printf '\n%s%s -->\n' "$DR_PATCH_MARKER_PREFIX" "$patch_id" >> "$out" ;;
+    esac
   fi
 }
