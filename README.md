@@ -274,6 +274,16 @@ The id comes from `patch-id`, else the `patch-id-key` field of `version-file`
 (`app_patch` / `appPatch`). The name follows `patch-section-template`
 (`{{version}}-patch.{{patch_id}}`). With no id, or an empty section, the patch
 uses `Unreleased`, as before.
+
+Patches are cumulative, so with numeric ids (`patch-sections: accumulate`, the
+default) each platform ships every section it hasn't shipped yet: from the one
+after its previous patch of the same release up to the current one. If patch
+4 went out only on iOS, the next Android patch (5) lists both `patch.4` and
+`patch.5`, while iOS lists only `patch.5`. Each patch records its id in its
+notes as an HTML comment (invisible once rendered, kept in the annotated tag)
+for the next run to read. A previous patch without it (older tags,
+lightweight tags) only gets the current section. `patch-sections: single`
+always takes just the current one.
 - **commits**: `git log` since the previous tag, `commit-format` (any
   `--pretty` format), capped at `max-commits` with a "+N more" line, merges
   excluded unless `include-merges`.
@@ -354,6 +364,7 @@ placeholders are left in place with a warning.
 | `changelog-section` | `auto` | `auto`, `version`, `unreleased` or a name |
 | `patch-id` | | Patch id for its changelog section (else read from `version-file`) |
 | `patch-id-key` | | `version-file` field with the patch id (`app_patch` / `appPatch`) |
+| `patch-sections` | `accumulate` | `accumulate` (sections since this platform's last patch) or `single` |
 | `patch-section-template` | `{{version}}-patch.{{patch_id}}` | Changelog section name of a patch |
 | `commit-format` | `- %s (%h)` | `git log --pretty` format |
 | `max-commits` | `150` | Cap on listed commits |

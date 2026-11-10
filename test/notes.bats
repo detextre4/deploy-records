@@ -118,12 +118,129 @@ MD
   git add pubspec.yaml && commit "chore: patch id"
   tag Android-v1.3.0+1
   patch_changelog
-  dr all DR_TAG=none DR_KIND=patch DR_PLATFORM=Android DR_PATCH_ID=3
+  dr all DR_TAG=none DR_KIND=patch DR_PLATFORM=Android DR_PATCH_ID=3 DR_PATCH_SECTIONS=single
   assert_success
   assert_output --partial "No entries under '## [1.3.0+1-patch.3]'"
   run notes
   assert_line '### 📋 Release notes (CHANGELOG.md — `[Unreleased]`)'
   assert_line '- Pending thing'
+}
+
+# accumulate_setup <app_patch> — release 1.3.0+1 (Android) with patch sections
+# 3 (shipped), 4 and 5 in the changelog.
+accumulate_setup() {
+  printf 'name: app\nversion: 1.3.0+1\napp_patch: %s\n' "$1" > pubspec.yaml
+  cat > CHANGELOG.md <<'MD'
+# Changelog
+
+## [Unreleased]
+- Pending thing
+
+## [1.3.0+1-patch.5]
+- Fix five
+
+## [1.3.0+1-patch.4]
+- Fix four
+
+## [1.3.0+1-patch.3] - 2026-11-01
+- Fix three
+
+## [1.3.0+1] - 2026-10-01
+- Released thing
+MD
+  git add pubspec.yaml CHANGELOG.md && commit "chore: patches"
+  tag Android-v1.3.0+1
+}
+
+# patch_tag <name> [patch id] — annotated patch tag, with the marker a
+# previous run would have written when an id is given.
+patch_tag() {
+  if [ -n "${2:-}" ]; then
+    git tag -a "$1" -m "$(printf 'notes\n\n<!-- deploy-records:patch-id=%s -->' "$2")"
+  else
+    git tag -a "$1" -m notes
+  fi
+  sleep 1
+}
+
+@test "a platform that skipped a patch gets every section since its last one" {
+  accumulate_setup 5
+  patch_tag Android-v1.3.0+1-patch1 3
+  dr all DR_TAG=none DR_KIND=patch DR_PLATFORM=Android
+  assert_success
+  run notes
+  assert_line '### 📋 Release notes (CHANGELOG.md — `[1.3.0+1-patch.4], [1.3.0+1-patch.5]`)'
+  assert_line '#### 1.3.0+1-patch.4'
+  assert_line '- Fix four'
+  assert_line '#### 1.3.0+1-patch.5'
+  assert_line '- Fix five'
+  refute_line '- Fix three'
+  refute_line '- Pending thing'
+  assert_line '<!-- deploy-records:patch-id=5 -->'
+}
+
+@test "a platform up to date gets only the new section, unchanged layout" {
+  accumulate_setup 5
+  patch_tag Android-v1.3.0+1-patch1 4
+  dr all DR_TAG=none DR_KIND=patch DR_PLATFORM=Android
+  assert_success
+  run notes
+  assert_line '### 📋 Release notes (CHANGELOG.md — `[1.3.0+1-patch.5]`)'
+  refute_line '#### 1.3.0+1-patch.5'
+  refute_line '- Fix four'
+}
+
+@test "first patch of a platform on a release gets every patch section" {
+  accumulate_setup 5
+  dr all DR_TAG=none DR_KIND=patch DR_PLATFORM=Android
+  assert_success
+  run notes
+  assert_line '### 📋 Release notes (CHANGELOG.md — `[1.3.0+1-patch.3], [1.3.0+1-patch.4], [1.3.0+1-patch.5]`)'
+  assert_line '- Fix three'
+}
+
+@test "previous patch without a recorded id, single, and an id going backwards" {
+  accumulate_setup 5
+  patch_tag Android-v1.3.0+1-patch1
+  dr all DR_TAG=none DR_KIND=patch DR_PLATFORM=Android
+  assert_success
+  assert_output --partial 'has no recorded patch id'
+  run notes
+  assert_line '### 📋 Release notes (CHANGELOG.md — `[1.3.0+1-patch.5]`)'
+
+  patch_tag Android-v1.3.0+1-patch2 3
+  dr all DR_TAG=none DR_ID=s DR_KIND=patch DR_PLATFORM=Android DR_PATCH_SECTIONS=single
+  assert_success
+  run cat "$RUNNER_TEMP/deploy-records/s.md"
+  assert_line '### 📋 Release notes (CHANGELOG.md — `[1.3.0+1-patch.5]`)'
+
+  patch_tag Android-v1.3.0+1-patch3 9
+  dr all DR_TAG=none DR_ID=b DR_KIND=patch DR_PLATFORM=Android
+  assert_success
+  assert_output --partial 'lower than the previous patch'
+  run cat "$RUNNER_TEMP/deploy-records/b.md"
+  assert_line '### 📋 Release notes (CHANGELOG.md — `[1.3.0+1-patch.5]`)'
+}
+
+@test "another platform's patches don't count" {
+  accumulate_setup 5
+  tag iOS-v1.3.0+1
+  patch_tag iOS-v1.3.0+1-patch1 4
+  patch_tag Android-v1.3.0+1-patch1 3
+  dr all DR_TAG=none DR_KIND=patch DR_PLATFORM=Android
+  assert_success
+  run notes
+  assert_line '### 📋 Release notes (CHANGELOG.md — `[1.3.0+1-patch.4], [1.3.0+1-patch.5]`)'
+}
+
+@test "the recorded id survives into the pushed tag" {
+  accumulate_setup 4
+  git init -q --bare "$BATS_TEST_TMPDIR/remote.git"
+  git remote add origin "$BATS_TEST_TMPDIR/remote.git"
+  dr all DR_KIND=patch DR_PLATFORM=Android
+  assert_success
+  run git tag -l --format='%(contents)' Android-v1.3.0+1-patch1
+  assert_line '<!-- deploy-records:patch-id=4 -->'
 }
 
 @test "a release ignores the patch id" {
