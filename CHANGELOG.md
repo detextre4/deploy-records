@@ -6,6 +6,22 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-11-23
+
+### Changed
+
+- CI and release workflows pin every action to a commit SHA, run with
+  read-only checkouts where nothing is pushed, audit egress with
+  harden-runner and install the dev deps with `--ignore-scripts`.
+- `release.yml` only releases a tag whose commit is on `main`, and runs in a
+  `release` environment so moving the major tag can require approval.
+- Dependabot keeps the pins current, with a 7-day cooldown.
+
+### Added
+
+- `SECURITY.md`: private vulnerability reporting, and why callers should pin
+  the action to a commit SHA.
+
 ## [1.6.0] - 2026-11-10
 
 ### Added

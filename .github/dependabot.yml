@@ -1,0 +1,21 @@
+# Bumps for the SHA-pinned actions and the dev-only npm deps, as reviewable
+# PRs. cooldown: a release is only proposed once it's a week old, so a
+# hijacked version is usually pulled before it gets here.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
