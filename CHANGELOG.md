@@ -6,6 +6,8 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-11-23
+
 ### Changed
 
 - CI and release workflows pin every action to a commit SHA, run with
