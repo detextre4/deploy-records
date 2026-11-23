@@ -15,10 +15,31 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Moving the major tag ships code to every repo on `@v1`. Give the
+    # `release` environment a required reviewer (Settings → Environments) so
+    # a pushed tag alone can't do it.
+    environment: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: step-security/harden-runner@aebdcf6156ab6691adf63218240e476564a1ed4c # v2.23.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+
+      # Only a commit already merged into main (i.e. reviewed through a PR)
+      # can become a release: a tag pushed on any other commit stops here,
+      # before the release or the major tag move.
+      - name: Tag must be on main
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$TAG^{commit}" origin/main; then
+            echo "::error::$TAG is not on main — merge it first, then tag the merge."
+            exit 1
+          fi
 
       # "v1.2.0" → "1.2.0": CHANGELOG.md sections are "## [1.2.0]".
       - name: Version from tag

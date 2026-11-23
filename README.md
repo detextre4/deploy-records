@@ -412,6 +412,11 @@ Notes templates: `{{title}}`, `{{kind}}`, `{{kind_label}}`, `{{platform}}`,
 
 ## Requirements and limits
 
+- **Pin a commit SHA in production workflows**
+  (`uses: detextre4/deploy-records@<sha> # v1.6.0`), not `@v1`: the action
+  runs next to your signing keys and with a token that can push, and a tag can
+  be moved while a SHA can't. The short examples here use `@v1` for
+  readability. See [SECURITY.md](SECURITY.md).
 - **`fetch-depth: 0`** on `actions/checkout`. A shallow clone has no earlier
   tags, so the previous tag, patch numbering and the existing-tag check would
   be wrong, the action warns when it detects one.
@@ -457,8 +462,10 @@ actionlint
 Releasing:
 
 1. Close the version's section in `CHANGELOG.md` and push it to `main`.
-2. Push a `vX.Y.Z` tag. `release.yml` drafts the GitHub Release with this
-   action (notes from that `CHANGELOG.md` section) and moves `vX`.
+2. Push a `vX.Y.Z` tag on a commit that's already on `main` (any other commit
+   fails the run). `release.yml` waits for the `release` environment's
+   approval, drafts the GitHub Release with this action (notes from that
+   `CHANGELOG.md` section) and moves `vX`.
 3. Open the draft under Releases, tick **Publish this Action to the GitHub
    Marketplace** and publish it — GitHub only lists releases published that
    way, from the web UI.
