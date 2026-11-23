@@ -6,6 +6,13 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 
 ## [Unreleased]
 
+### Changed
+
+- CI and release workflows move to the Node 24 releases of their actions
+  (checkout v7.0.1, setup-node v7.1.0, setup-python v7.1.0) and run the dev
+  tooling on Node 24. Node 20 actions are deprecated. The action itself is
+  bash and is unaffected.
+
 ## [1.6.1] - 2026-11-23
 
 ### Changed
